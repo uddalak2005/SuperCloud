@@ -1,19 +1,19 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
-  provider = "postgresql" // or sqlite for hackathon
-
+  provider = "postgresql"
 }
 
 model Incident {
-  id          String      @id @default(uuid())
-  source      String
-  severity    String
-  service     String
-  status      String
-  createdAt   DateTime    @default(now())
+  id        String   @id @default(uuid())
+  source    String
+  severity  String
+  service   String
+  status    String
+  createdAt DateTime @default(now())
 
   auditEvents AuditEvent[]
   executions  Execution[]

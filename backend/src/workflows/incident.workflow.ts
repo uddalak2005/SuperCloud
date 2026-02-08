@@ -4,57 +4,71 @@ import { callAgent } from "../agents/agent.service";
 import { evaluatePolicy } from "../policies/policy.engine";
 import { executeAction } from "../execution/executor.service";
 import { recordAuditEvent } from "../audit/audit.service";
+import prisma from '../db/prisma';
 
 export const runIncidentWorkflow = async (
     incident: NormalizedIncident
 ) => {
     const incidentId = uuidv4();
 
-    // 🔹 Audit: Alert ingested
-    recordAuditEvent({
+    // 1️⃣ Create incident
+    await prisma.incident.create({
+        data: {
+            id: incidentId,
+            source: incident.source,
+            severity: incident.severity,
+            service: incident.service,
+            status: "OPEN",
+        },
+    });
+
+    // 2️⃣ Audit: alert ingested
+    await recordAuditEvent({
         incidentId,
         type: "ALERT_INGESTED",
-        timestamp: new Date().toISOString(),
         data: incident,
     });
 
+    // 3️⃣ Choose agent
     let agentName = "IncidentResponseAgent";
-
     if (incident.signalType === "METRIC_ALERT") {
         agentName = "SelfHealingAgent";
     }
 
-    // 🔹 Agent decision
+    // 4️⃣ Agent decision
     const agentResult = await callAgent(agentName as any, {
         incidentId,
         context: incident,
     });
 
-    recordAuditEvent({
+    await recordAuditEvent({
         incidentId,
         type: "AGENT_DECISION",
-        timestamp: new Date().toISOString(),
         data: agentResult,
     });
 
-    // 🔹 Policy evaluation
+    // 5️⃣ Policy evaluation
     const policyDecision = evaluatePolicy(
         agentResult.decision,
         incident.severity
     );
 
-    recordAuditEvent({
+    await recordAuditEvent({
         incidentId,
         type: "POLICY_EVALUATION",
-        timestamp: new Date().toISOString(),
         data: policyDecision,
     });
 
+    // 6️⃣ Blocked by policy
     if (!policyDecision.allowed) {
-        recordAuditEvent({
+        await prisma.incident.update({
+            where: { id: incidentId },
+            data: { status: "BLOCKED" },
+        });
+
+        await recordAuditEvent({
             incidentId,
             type: "INCIDENT_BLOCKED",
-            timestamp: new Date().toISOString(),
             data: { reason: policyDecision.reason },
         });
 
@@ -65,23 +79,37 @@ export const runIncidentWorkflow = async (
         };
     }
 
-    // 🔹 Execute action
+    // 7️⃣ Execute action
     const executionResult = await executeAction(
         agentResult.decision,
         incident.service
     );
 
-    recordAuditEvent({
+    await recordAuditEvent({
         incidentId,
         type: "ACTION_EXECUTED",
-        timestamp: new Date().toISOString(),
         data: executionResult,
     });
 
-    recordAuditEvent({
+    // 8️⃣ Persist execution
+    await prisma.execution.create({
+        data: {
+            incidentId,
+            action: agentResult.decision,
+            success: executionResult.success,
+            message: executionResult.message,
+        },
+    });
+
+    // 9️⃣ Mark incident resolved
+    await prisma.incident.update({
+        where: { id: incidentId },
+        data: { status: "RESOLVED" },
+    });
+
+    await recordAuditEvent({
         incidentId,
         type: "INCIDENT_RESOLVED",
-        timestamp: new Date().toISOString(),
         data: { success: executionResult.success },
     });
 

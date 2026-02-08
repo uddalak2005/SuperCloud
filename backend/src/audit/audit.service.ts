@@ -1,17 +1,22 @@
-import { AuditEvent } from "./audit.types";
+import prisma from "../db/prisma";
 
-const auditStore: AuditEvent[] = [];
-
-export const recordAuditEvent = (
-    event: AuditEvent
-) => {
-    auditStore.push(event);
+export const recordAuditEvent = async (event: {
+    incidentId: string;
+    type: string;
+    data: any;
+}) => {
+    await prisma.auditEvent.create({
+        data: {
+            incidentId: event.incidentId,
+            type: event.type,
+            data: event.data,
+        },
+    });
 };
 
-export const getIncidentAuditTrail = (
-    incidentId: string
-): AuditEvent[] => {
-    return auditStore.filter(
-        (event) => event.incidentId === incidentId
-    );
+export const getIncidentAuditTrail = async (incidentId: string) => {
+    return prisma.auditEvent.findMany({
+        where: { incidentId },
+        orderBy: { timestamp: "asc" },
+    });
 };

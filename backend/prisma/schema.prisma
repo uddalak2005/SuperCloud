@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // or sqlite for hackathon
+
+}
+
+model Incident {
+  id          String      @id @default(uuid())
+  source      String
+  severity    String
+  service     String
+  status      String
+  createdAt   DateTime    @default(now())
+
+  auditEvents AuditEvent[]
+  executions  Execution[]
+}
+
+model AuditEvent {
+  id         String   @id @default(uuid())
+  incidentId String
+  type       String
+  data       Json
+  timestamp  DateTime @default(now())
+
+  incident Incident @relation(fields: [incidentId], references: [id])
+}
+
+model Execution {
+  id         String   @id @default(uuid())
+  incidentId String
+  action     String
+  success    Boolean
+  message    String
+  executedAt DateTime @default(now())
+
+  incident Incident @relation(fields: [incidentId], references: [id])
+}

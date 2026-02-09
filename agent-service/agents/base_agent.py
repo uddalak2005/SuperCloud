@@ -15,8 +15,8 @@ class BaseAgent(ABC):
         """
         Process state and return next action
         Returns: {
-            "action": "get_logs|get_metrics|exec_shell|...",
-            "parameters": {...}
+            "action":"get_logs|get_metrics|exec_shell|...",
+            "parameters":{...}
         }
         """
         pass

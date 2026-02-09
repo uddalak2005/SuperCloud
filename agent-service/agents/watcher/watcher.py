@@ -10,9 +10,19 @@ class WatcherAgent(BaseAgent):
         self.anomaly_threshold = 3.0  
     
     async def get_action(self, state: str) -> Dict[str, Any]:
+
+
+
         """
-        Continuously monitor and detect anomalies
+        This continuously monitor and detect anomalies.
+
+        state will contain current metrics, logs, and other relevant info. For simplicity, we will just focus on metrics here.
+        state will be passed as string by the orchestrator, so we will need to parse it to extract the metrics.state is String
+        as we know Node sends serialized JSON. So we can parse it using json.loads to get the actual metrics data structure.
         """
+
+
+
         # Parse current metrics from state
         current_metrics = self.parse_metrics(state)
         
@@ -49,7 +59,7 @@ class WatcherAgent(BaseAgent):
 
 
 
-    
+
     def detect_anomalies(self, metrics: Dict) -> List[Dict]:
         """
         Statistical anomaly detection

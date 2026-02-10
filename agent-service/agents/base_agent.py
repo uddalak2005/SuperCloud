@@ -11,7 +11,7 @@ class BaseAgent(ABC):
         self.memory = []
     
     @abstractmethod
-    async def get_action(self, state: str) -> Dict[str, Any]:
+    async def get_action(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process state and return next action
         Returns: {

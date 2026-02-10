@@ -1,5 +1,5 @@
-
 import json
+import yaml
 from base_agent import BaseAgent
 import openai
 from typing import Dict, Any, List
@@ -8,7 +8,15 @@ class RCABrainAgent(BaseAgent):
     def __init__(self, agent_id: str, llm_model: str = "gpt-4"):
         super().__init__(agent_id, "rca_brain")
         self.llm_model = llm_model
-        self.dependency_graph = {}
+        self.dependency_graph = self.load_dependency_graph()
+
+    def load_dependency_graph(self) -> Dict[str, List[str]]:
+        try:
+            with open("configs/dependencies.yaml", "r") as file:
+                return yaml.safe_load(file) or {}
+        except Exception as e:
+            print(f"[RCABrainAgent] Failed to load dependency graph: {e}")
+            return {}
     
     async def get_action(self, state: str) -> Dict[str, Any]:
         """
@@ -139,6 +147,10 @@ class RCABrainAgent(BaseAgent):
         Cross-reference LLM findings with dependency graph
         """
         root_cause_service = rca_result["root_cause"]["service"]
+        
+        if root_cause_service not in self.dependency_graph:
+            rca_result["validated"] = False
+            return rca_result
         
         # Check if downstream services are affected
         downstream = self.get_downstream_services(root_cause_service)

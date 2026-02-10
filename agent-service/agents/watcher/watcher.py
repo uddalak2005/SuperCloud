@@ -6,7 +6,7 @@ import numpy as np
 class WatcherAgent(BaseAgent):
     def __init__(self, agent_id: str):
         super().__init__(agent_id, "watcher")
-        self.baseline_metrics = {}
+        self.baseline_metrics = {}  #define baseline metrics for anomaly detection from user input.
         self.anomaly_threshold = 3.0  
     
     async def get_action(self, state: str) -> Dict[str, Any]:
@@ -23,7 +23,7 @@ class WatcherAgent(BaseAgent):
 
 
 
-        # Parse current metrics from state
+        # Parse current metrics from state (input) using a datastreamer or a POST method from orchestrator/ telementry connector.
         current_metrics = self.parse_metrics(state)
         
         # Check for anomalies
@@ -58,11 +58,10 @@ class WatcherAgent(BaseAgent):
 
 
 
-
-
+    #basic detection logic
     def detect_anomalies(self, metrics: Dict) -> List[Dict]:
         """
-        Statistical anomaly detection
+        anomaly detection
         """
         anomalies = []
         for metric_name, value in metrics.items():

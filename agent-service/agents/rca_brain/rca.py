@@ -22,7 +22,7 @@ class RCABrainAgent(BaseAgent):
         """
         Perform root cause analysis using LLM reasoning + dependency graphs
         """
-        # Extract relevant information
+        # Extract relevant information 
         incident_data = self.parse_incident_data(state)
 
 

@@ -35,7 +35,7 @@ class WatcherAgent(BaseAgent):
                 "parameters": {
                     "anomalies": anomalies,
                     "severity": self.calculate_severity(anomalies),
-                    "trigger_rca": True
+                    "trigger_rca": self.calculate_severity(anomalies) in ["HIGH", "CRITICAL"]  # singal to the orchestrator to trigger RCA agent for deeper investigation
                 }
             }
         
@@ -47,12 +47,16 @@ class WatcherAgent(BaseAgent):
                 "interval": "30s"
             }
         }
-    
+    #the following code is a pseudo code to show how the agent can instruct the orchestrator to wait for a certain interval before the next check, but since we don't have the actual implementation of the orchestrator right now.
+    # interval = parse_time(result["parameters"]["next_check"])
+    # await asyncio.sleep(interval)
+
     #have to define parse_metrics and calculate_severity for the above code to work, but skipping for now since it's not the main focus of this agent
     
 
 
 
+    
 
 
 
@@ -78,3 +82,23 @@ class WatcherAgent(BaseAgent):
                     })
         
         return anomalies
+    
+
+    def calculate_severity(self, anomalies: List[Dict]) -> str:
+        """
+        Calculate severity level based on anomaly z-scores
+        """
+
+        if not anomalies:
+            return "LOW"
+
+        max_z = max(abs(a.get("z_score", 0)) for a in anomalies)
+
+        if max_z > 6:
+            return "CRITICAL"
+        elif max_z > 4:
+            return "HIGH"
+        elif max_z > 2:
+            return "MEDIUM"
+        else:
+            return "LOW"

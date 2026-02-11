@@ -1,16 +1,26 @@
-
 from base_agent import BaseAgent
 from typing import Dict, Any, List
 import numpy as np
 
-class WatcherAgent(BaseAgent):
+
+
+class DetectorAgent(BaseAgent):
     def __init__(self, agent_id: str):
-        super().__init__(agent_id, "watcher")
-        self.baseline_metrics = {}  #define baseline metrics for anomaly detection from user input.
+        super().__init__(agent_id, "detector")
+        self.baseline_metrics = {}
+        #     {
+        #      "detector": {
+        #         "baseline_metrics": {
+        #             "cpu_usage_percent": {"mean": 45.0, "std": 15.0},
+        #             "memory_usage_percent": {"mean": 60.0, "std": 10.0},
+        #             "response_time_ms": {"mean": 150.0, "std": 50.0}
+        #         }
+        #     }
+        # }
+     #define baseline metrics for anomaly detection from user input.
         self.anomaly_threshold = 3.0  
     
-    async def get_action(self, state: str) -> Dict[str, Any]:
-
+    async def get_action(self,state: Dict[str, Any]) -> Dict[str, Any]:
 
 
         """
@@ -20,11 +30,15 @@ class WatcherAgent(BaseAgent):
         state will be passed as string by the orchestrator, so we will need to parse it to extract the metrics.state is String
         as we know Node sends serialized JSON. So we can parse it using json.loads to get the actual metrics data structure.
         """
+        
 
+        # Parse current metrics from state (input) using datadog from orchestrator/ telementry connector.
+                # Parse current metrics from state (input) using datadog from orchestrator/ telementry connector.
+        current_metrics = state 
 
+        for k, v in state.items():
+            current_metrics[k] = v
 
-        # Parse current metrics from state (input) using a datastreamer or a POST method from orchestrator/ telementry connector.
-        current_metrics = self.parse_metrics(state)
         
         # Check for anomalies
         anomalies = self.detect_anomalies(current_metrics)
@@ -51,18 +65,11 @@ class WatcherAgent(BaseAgent):
     # interval = parse_time(result["parameters"]["next_check"])
     # await asyncio.sleep(interval)
 
-    #have to define parse_metrics and calculate_severity for the above code to work, but skipping for now since it's not the main focus of this agent
+    #have to define parse_metrics for the above code to work, but skipping for now since it's not the main focus of this agent.
     
 
 
-
-    
-
-
-
-
-
-    #basic detection logic
+    #basic detection logic, assumes numerical metrics and uses z-score for anomaly detection, later i change the logic.
     def detect_anomalies(self, metrics: Dict) -> List[Dict]:
         """
         anomaly detection
@@ -101,4 +108,4 @@ class WatcherAgent(BaseAgent):
         elif max_z > 2:
             return "MEDIUM"
         else:
-            return "LOW"
+            return "LOW"                             

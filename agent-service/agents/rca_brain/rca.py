@@ -1,164 +1,100 @@
+# agents/rca_brain.py
 import json
-import yaml
 from base_agent import BaseAgent
-import openai
-from typing import Dict, Any, List
+from groq import AsyncGroq
+from typing import Dict, Any
+
+
 
 class RCABrainAgent(BaseAgent):
-    def __init__(self, agent_id: str, llm_model: str = "gpt-4"):
+    def __init__(self, agent_id: str):
         super().__init__(agent_id, "rca_brain")
-        self.llm_model = llm_model
-        self.dependency_graph = self.load_dependency_graph()
-
-    def load_dependency_graph(self) -> Dict[str, List[str]]:
-        try:
-            with open("configs/dependencies.yaml", "r") as file:
-                return yaml.safe_load(file) or {}
-        except Exception as e:
-            print(f"[RCABrainAgent] Failed to load dependency graph: {e}")
-            return {}
-    
-    async def get_action(self, state: str) -> Dict[str, Any]:
-        """
-        Perform root cause analysis using LLM reasoning + dependency graphs
-        """
-        # Extract relevant information 
-        incident_data = self.parse_incident_data(state)
-
-
         
-        """ 'parse_incident_data' is not defined but it should extract things like affected services,
-          error messages, timestamps, etc from the state input. Skipping implementation for now since 
-          it's not the main focus of this agent."""
 
+    async def get_action(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Perform root cause analysis using LLM reasoning over incident context
+        """
 
-        # Build investigation context
-        investigation_context = await self.build_investigation_context(
-            incident_data
-        )
-        
+        # Build investigation context directly from incident state
+        investigation_context = self.build_investigation_context(state)
+
         # Use LLM for reasoning
         rca_result = await self.perform_llm_reasoning(
             investigation_context
         )
-        
-        # Validate against dependency graph
-        validated_rca = self.validate_with_dependencies(rca_result)
-        
+
         return {
             "action": "rca_complete",
             "parameters": {
-                "root_cause": validated_rca["root_cause"],
-                "affected_services": validated_rca["affected_services"],
-                "confidence": validated_rca["confidence"],
-                "recommended_fixes": validated_rca["fixes"]
+                "root_cause": rca_result.get("root_cause"),
+                "affected_services": rca_result.get("affected_services", []),
+                "confidence": rca_result.get("confidence", 0.0),
+                "recommended_fixes": rca_result.get("fixes", [])
             }
         }
-    
-    async def build_investigation_context(self, incident_data: Dict) -> str:
+
+    def build_investigation_context(self, state: Dict[str, Any]) -> str:
         """
-        Gather logs, metrics, traces for comprehensive analysis, here also methods not done
-        get logs, metrics,traces from prometheus,loki, tempo, and also get dependency info from the dependency graph. 
-        Then combine all this into a single context string for the LLM to analyze.
-
-
-        DO THIS MODULE @UDDALAK 
-
+        Build RCA investigation context directly from incident state dict
         """
-        context_parts = []
-        
-        # Get logs from affected services
-        logs = await self.get_logs(incident_data["services"])
-        context_parts.append(f"LOGS:\n{logs}")
-        
-        # Get metrics
-        metrics = await self.get_metrics(incident_data["services"])
-        context_parts.append(f"METRICS:\n{metrics}")
-        
-        # Get traces
-        traces = await self.get_traces(incident_data["trace_ids"])
-        context_parts.append(f"TRACES:\n{traces}")
-        
-        # Get dependency info
-        deps = self.get_dependency_info(incident_data["services"])
-        context_parts.append(f"DEPENDENCIES:\n{deps}")
-        
-        return "\n\n".join(context_parts)
-    
 
+        try:
+            pretty_state = json.dumps(state, indent=2, default=str)
+        except Exception:
+            pretty_state = str(state)
 
+        context = f"""
+            Below is the full incident telemetry state detected by the monitoring system.
 
-    
+            INCIDENT STATE:
+            {pretty_state}
+            Use this information to perform root cause analysis.
+            """
+        return context      
+
     async def perform_llm_reasoning(self, context: str) -> Dict:
         """
         Use LLM to reason about root cause
         """
+
         prompt = f"""
-        You are an expert SRE performing root cause analysis.
-        
-        INCIDENT CONTEXT:
-        {context}
-        
-        Analyze the above data and provide:
-        1. Root cause identification
-        2. Affected services
-        3. Confidence level (0-1)
-        4. Recommended remediation steps
-        
-        Format your response as JSON.
-        """
-        
-        client = openai.AsyncOpenAI()
+            You are an expert Site Reliability Engineer.
+
+            Below is an incident detected by an automated monitoring system.
+
+            {context}
+
+            Your task:
+            1. Identify the most likely root cause
+            2. List affected services
+            3. Provide a confidence score (0-1)
+            4. Recommend concrete remediation steps
+
+            Respond ONLY in valid JSON with keys:
+            root_cause, affected_services, confidence, fixes
+            """
+
+        client = AsyncGroq()
 
         response = await client.chat.completions.create(
-            model=self.llm_model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.1
+        model="qwen/qwen3-32b",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.6,
+        max_completion_tokens=4096,
+        top_p=0.95,
+        reasoning_effort="default",
+        stream=False   
         )
+
         content = response.choices[0].message.content
 
         try:
-            rca_result = json.loads(content)
+            return json.loads(content)
         except Exception:
-            rca_result = {
-                "root_cause": {"service": "unknown"},
+            return {
+                "root_cause": "Unable to determine",
                 "affected_services": [],
                 "confidence": 0.0,
                 "fixes": []
-        }
-            
-        return rca_result
-
-    def get_downstream_services(self, service: str) -> List[str]:
-        """
-        Find services that depend on the given service
-        """
-
-        downstream = []
-
-        for svc, dependencies in self.dependency_graph.items():
-            if service in dependencies:
-                downstream.append(svc)
-
-        return downstream
-    
-    def validate_with_dependencies(self, rca_result: Dict) -> Dict:
-        """
-        Cross-reference LLM findings with dependency graph
-        """
-        root_cause_service = rca_result["root_cause"]["service"]
-        
-        if root_cause_service not in self.dependency_graph:
-            rca_result["validated"] = False
-            return rca_result
-        
-        # Check if downstream services are affected
-        downstream = self.get_downstream_services(root_cause_service)
-        
-        # Validate affected services match dependency chain
-        rca_result["validated"] = all(
-            svc in downstream 
-            for svc in rca_result["affected_services"]
-        )
-        
-        return rca_result
+         }

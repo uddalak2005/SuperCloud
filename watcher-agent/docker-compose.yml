@@ -1,0 +1,12 @@
+version: "3.9"
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: agent/dockerfile
+    container_name: watcher-dev
+    volumes:
+      - .:/app
+    working_dir: /app
+    tty: true

@@ -1,13 +1,23 @@
 from base_agent import BaseAgent
 from typing import Dict, Any, List
 import numpy as np
-import json
+
 
 
 class DetectorAgent(BaseAgent):
     def __init__(self, agent_id: str):
         super().__init__(agent_id, "detector")
-        self.baseline_metrics = {}  #define baseline metrics for anomaly detection from user input.
+        self.baseline_metrics = {}
+        #     {
+        #      "detector": {
+        #         "baseline_metrics": {
+        #             "cpu_usage_percent": {"mean": 45.0, "std": 15.0},
+        #             "memory_usage_percent": {"mean": 60.0, "std": 10.0},
+        #             "response_time_ms": {"mean": 150.0, "std": 50.0}
+        #         }
+        #     }
+        # }
+     #define baseline metrics for anomaly detection from user input.
         self.anomaly_threshold = 3.0  
     
     async def get_action(self,state: Dict[str, Any]) -> Dict[str, Any]:
@@ -24,7 +34,7 @@ class DetectorAgent(BaseAgent):
 
         # Parse current metrics from state (input) using datadog from orchestrator/ telementry connector.
                 # Parse current metrics from state (input) using datadog from orchestrator/ telementry connector.
-        current_metrics = {}
+        current_metrics = state 
 
         for k, v in state.items():
             current_metrics[k] = v

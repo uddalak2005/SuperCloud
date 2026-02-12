@@ -6,6 +6,9 @@
 #include <unistd.h>
 #include <signal.h>
 #include "metrics/cpu.h"
+#include "metrics/memory.h"
+#include "metrics/disk.h"
+#include "metrics/network.h"
 
 int running = 1;
 
@@ -39,7 +42,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    printf("=== CPU Monitor ===\n");
     printf("Config: %s\n", config_file);
     printf("Verbose: %s\n", verbose ? "yes" : "no");
     printf("Interval: %d seconds\n\n", interval);
@@ -61,27 +63,21 @@ int main(int argc, char *argv[])
     int count = 0;
     while (running)
     {
+        // CPU Metrics
+        get_CPU_usage(verbose, count);
+        if (count > 0)
+        {
+            // Memory Usage
+            get_memory_stats(verbose, count);
+            // Disk Usage
+            get_disk_usage(verbose, count);
+        }
+        // Network
+        get_network_stats(interval, verbose, count);
+
+        printf("\n");
         count++;
         sleep(interval);
-
-        if (read_CPU_stats(&curr_stats) != 0)
-        {
-            fprintf(stderr, "Failed to read CPU stats\n");
-            continue;
-        }
-
-        float cpu_usage = calculate_CPU_usage(&prev_stats, &curr_stats);
-
-        printf("[%d] CPU: %.2f%%\n", count, cpu_usage);
-
-        if (verbose)
-        {
-            printf("    Total: %llu, Idle: %llu\n",
-                   get_total_CPU_time(&curr_stats),
-                   get_idle_CPU_time(&curr_stats));
-        }
-
-        prev_stats = curr_stats;
     }
 
     printf("\nStopped after %d readings\n", count);

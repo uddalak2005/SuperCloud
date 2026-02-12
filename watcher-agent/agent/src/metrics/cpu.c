@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include "cpu.h"
 
+static int first_call = 1;
+static CPUStats prev_stats;
+
 int read_CPU_stats(CPUStats *stats)
 {
 
@@ -76,4 +79,39 @@ float calculate_CPU_usage(CPUStats *prev, CPUStats *curr)
     float usage = (float)(total_delta - total_idle) / (float)total_delta * 100.0;
 
     return usage;
+}
+
+void get_CPU_usage(int verbose, int count)
+{
+    CPUStats curr_stats;
+
+    if (read_CPU_stats(&curr_stats) != 0)
+    {
+        fprintf(stderr, "Failed to read CPU stats\n");
+        return;
+    }
+
+    if (first_call)
+    {
+        prev_stats = curr_stats;
+        first_call = 0;
+        if (verbose)
+        {
+            printf("[%d] CPU: Initial baseline established\n", count);
+        }
+        return;
+    }
+
+    float cpu_usage = calculate_CPU_usage(&prev_stats, &curr_stats);
+
+    printf("[%d] CPU: %.2f%%\n", count, cpu_usage);
+
+    if (verbose)
+    {
+        printf("    Total: %llu, Idle: %llu\n",
+               get_total_CPU_time(&curr_stats),
+               get_idle_CPU_time(&curr_stats));
+    }
+
+    prev_stats = curr_stats;
 }

@@ -18,5 +18,6 @@ int read_CPU_stats(CPUStats *stats);
 unsigned long long get_total_CPU_time(CPUStats *stats);
 unsigned long long get_idle_CPU_time(CPUStats *stats);
 float calculate_CPU_usage(CPUStats *prev, CPUStats *curr);
+void get_CPU_usage(int verbose, int count);
 
 #endif

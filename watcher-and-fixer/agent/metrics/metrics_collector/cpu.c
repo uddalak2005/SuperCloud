@@ -85,7 +85,7 @@ float calculate_CPU_usage(CPUStats *prev, CPUStats *curr)
 
 static void write_cpu_fifo(const char *fifo_path, const char *payload, int verbose)
 {
-    int fd = open(fifo_path, O_WRONLY | O_NONBLOCK);
+    int fd = open(fifo_path, O_RDWR | O_NONBLOCK);
     if (fd < 0)
     {
         if (verbose && errno != ENXIO)

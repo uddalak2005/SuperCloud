@@ -106,7 +106,7 @@ int read_disk_usage(Disk_usage *stats)
 
 static void write_disk_fifo(const char *fifo_path, const char *payload, int verbose)
 {
-    int fd = open(fifo_path, O_WRONLY | O_NONBLOCK);
+    int fd = open(fifo_path, O_RDWR | O_NONBLOCK);
     if (fd < 0)
     {
         if (verbose && errno != ENXIO)

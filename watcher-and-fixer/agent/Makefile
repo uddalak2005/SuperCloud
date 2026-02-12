@@ -1,7 +1,7 @@
 CC = gcc
 BUILD_DIR = build
 TARGET = $(BUILD_DIR)/metrics_collector.o
-LOGS_TARGET = $(BUILD_DIR)/log_collector_simple.o
+LOGS_TARGET = $(BUILD_DIR)/log_collector.o
 COMBINED_TARGET = $(BUILD_DIR)/watcher_agent_all.o
 
 SRC_DIR = metrics

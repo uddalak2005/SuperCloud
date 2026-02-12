@@ -127,7 +127,7 @@ static int read_fifo_line(int fd, char *buffer, size_t size, int timeout_ms)
 
 static void write_primary_fifo(const char *path, const char *payload, int verbose)
 {
-    int fd = open(path, O_WRONLY | O_NONBLOCK);
+    int fd = open(path, O_RDWR | O_NONBLOCK);
     if (fd < 0)
     {
         if (verbose && errno != ENXIO)
@@ -187,6 +187,7 @@ int run_metrics_collector(int argc, char *argv[])
         ensure_fifo(network_fifo) != 0 ||
         ensure_fifo(primary_fifo) != 0)
     {
+        fprintf(stderr, "Failed to ensure FIFOs\n");
         return 1;
     }
 
@@ -195,10 +196,14 @@ int run_metrics_collector(int argc, char *argv[])
     int disk_fd = open_fifo_reader(disk_fifo);
     int network_fd = open_fifo_reader(network_fifo);
 
-    if (cpu_fd < 0 || memory_fd < 0 || disk_fd < 0 || network_fd < 0)
-    {
-        return 1;
-    }
+    if (cpu_fd < 0)
+        fprintf(stderr, "Warning: Failed to open cpu_fd\n");
+    if (memory_fd < 0)
+        fprintf(stderr, "Warning: Failed to open memory_fd\n");
+    if (disk_fd < 0)
+        fprintf(stderr, "Warning: Failed to open disk_fd\n");
+    if (network_fd < 0)
+        fprintf(stderr, "Warning: Failed to open network_fd\n");
 
     int count = 0;
     while (running)

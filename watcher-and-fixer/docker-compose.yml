@@ -4,7 +4,7 @@ services:
   dev:
     build:
       context: .
-      dockerfile: agent/dockerfile
+      dockerfile: dockerfile
     container_name: watcher-dev
     volumes:
       - .:/app

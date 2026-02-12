@@ -3,7 +3,9 @@
 #include <unistd.h>
 #include <signal.h>
 #include <stdlib.h>
-#include "cpu.h"
+#include <fcntl.h>
+#include <errno.h>
+#include "headers/cpu.h"
 
 static int first_call = 1;
 static CPUStats prev_stats;
@@ -81,9 +83,30 @@ float calculate_CPU_usage(CPUStats *prev, CPUStats *curr)
     return usage;
 }
 
-void get_CPU_usage(int verbose, int count)
+static void write_cpu_fifo(const char *fifo_path, const char *payload, int verbose)
+{
+    int fd = open(fifo_path, O_WRONLY | O_NONBLOCK);
+    if (fd < 0)
+    {
+        if (verbose && errno != ENXIO)
+        {
+            perror("cpu fifo open failed");
+        }
+        return;
+    }
+
+    size_t len = strlen(payload);
+    if (write(fd, payload, len) < 0 && verbose)
+    {
+        perror("cpu fifo write failed");
+    }
+    close(fd);
+}
+
+void get_CPU_usage(int verbose, int count, const char *fifo_path)
 {
     CPUStats curr_stats;
+    (void)count;
 
     if (read_CPU_stats(&curr_stats) != 0)
     {
@@ -91,27 +114,27 @@ void get_CPU_usage(int verbose, int count)
         return;
     }
 
+    float cpu_usage = -1.0f;
+    int baseline = 0;
+
     if (first_call)
     {
         prev_stats = curr_stats;
         first_call = 0;
-        if (verbose)
-        {
-            printf("[%d] CPU: Initial baseline established\n", count);
-        }
-        return;
+        baseline = 1;
     }
-
-    float cpu_usage = calculate_CPU_usage(&prev_stats, &curr_stats);
-
-    printf("[%d] CPU: %.2f%%\n", count, cpu_usage);
-
-    if (verbose)
+    else
     {
-        printf("    Total: %llu, Idle: %llu\n",
-               get_total_CPU_time(&curr_stats),
-               get_idle_CPU_time(&curr_stats));
+        cpu_usage = calculate_CPU_usage(&prev_stats, &curr_stats);
+        prev_stats = curr_stats;
     }
 
-    prev_stats = curr_stats;
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer),
+             "{\"cpu_percent\":%.2f,\"total\":%llu,\"idle\":%llu,\"baseline\":%s}\n",
+             cpu_usage,
+             get_total_CPU_time(&curr_stats),
+             get_idle_CPU_time(&curr_stats),
+             baseline ? "true" : "false");
+    write_cpu_fifo(fifo_path, buffer, verbose);
 }

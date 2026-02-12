@@ -16,6 +16,6 @@ typedef struct
 } Memory_Usage;
 
 int read_memory_stats(Memory_Usage *stats);
-void get_memory_stats(int verbose, int count);
+void get_memory_stats(int verbose, int count, const char *fifo_path);
 
 #endif

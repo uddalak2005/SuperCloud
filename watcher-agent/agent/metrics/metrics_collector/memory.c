@@ -3,7 +3,8 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
-#include "memory.h"
+#include <errno.h>
+#include "headers/memory.h"
 
 #define BUFFER_SIZE 4096
 
@@ -88,33 +89,53 @@ int read_memory_stats(Memory_Usage *stats)
     return 0;
 }
 
-void get_memory_stats(int verbose, int count)
+static void write_memory_fifo(const char *fifo_path, const char *payload, int verbose)
+{
+    int fd = open(fifo_path, O_WRONLY | O_NONBLOCK);
+    if (fd < 0)
+    {
+        if (verbose && errno != ENXIO)
+        {
+            perror("memory fifo open failed");
+        }
+        return;
+    }
+
+    size_t len = strlen(payload);
+    if (write(fd, payload, len) < 0 && verbose)
+    {
+        perror("memory fifo write failed");
+    }
+    close(fd);
+}
+
+void get_memory_stats(int verbose, int count, const char *fifo_path)
 {
     Memory_Usage memory;
+    (void)count;
     if (read_memory_stats(&memory) != 0)
     {
         fprintf(stderr, "Error reading memory stats\n");
         return;
     }
 
-    fflush(stdout);
+    double used_gb = memory.used_kb / 1024.0 / 1024.0;
+    double total_gb = memory.total_kb / 1024.0 / 1024.0;
+    double avail_gb = memory.available_kb / 1024.0 / 1024.0;
+    double swap_used_gb = memory.swap_used / 1024.0 / 1024.0;
+    double swap_total_gb = memory.swap_total / 1024.0 / 1024.0;
 
-    printf("[%d] Memory: %.2f%% (%.2f GB / %.2f GB)\n",
-           count,
-
-           memory.used_percent,
-           memory.used_kb / 1024.0 / 1024.0, // Convert KB to GB
-           memory.total_kb / 1024.0 / 1024.0);
-
-    if (verbose)
-    {
-        printf("    Memory Available: %.2f GB\n",
-               memory.available_kb / 1024.0 / 1024.0);
-        printf("    Swap: %.2f%% (%.2f GB / %.2f GB)\n",
-               memory.swap_used_percent,
-               memory.swap_used / 1024.0 / 1024.0,
-               memory.swap_total / 1024.0 / 1024.0);
-    }
-
-    return;
+    char buffer[320];
+    snprintf(buffer, sizeof(buffer),
+             "{\"used_percent\":%.2f,\"used_gb\":%.2f,\"total_gb\":%.2f,"
+             "\"available_gb\":%.2f,\"swap_used_percent\":%.2f,"
+             "\"swap_used_gb\":%.2f,\"swap_total_gb\":%.2f}\n",
+             memory.used_percent,
+             used_gb,
+             total_gb,
+             avail_gb,
+             memory.swap_used_percent,
+             swap_used_gb,
+             swap_total_gb);
+    write_memory_fifo(fifo_path, buffer, verbose);
 }

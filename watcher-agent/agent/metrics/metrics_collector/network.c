@@ -1,7 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "network.h"
+#include <fcntl.h>
+#include <errno.h>
+#include <unistd.h>
+#include "headers/network.h"
 
 static int first_call = 1;
 static Network_Usage previous = {0, 0};
@@ -44,9 +47,30 @@ int read_network_stats(Network_Usage *stats)
     return 0;
 }
 
-void get_network_stats(int interval, int verbose, int count)
+static void write_network_fifo(const char *fifo_path, const char *payload, int verbose)
+{
+    int fd = open(fifo_path, O_WRONLY | O_NONBLOCK);
+    if (fd < 0)
+    {
+        if (verbose && errno != ENXIO)
+        {
+            perror("network fifo open failed");
+        }
+        return;
+    }
+
+    size_t len = strlen(payload);
+    if (write(fd, payload, len) < 0 && verbose)
+    {
+        perror("network fifo write failed");
+    }
+    close(fd);
+}
+
+void get_network_stats(int interval, int verbose, int count, const char *fifo_path)
 {
     Network_Usage current;
+    (void)count;
 
     // Read current stats
     if (read_network_stats(&current) != 0)
@@ -55,23 +79,28 @@ void get_network_stats(int interval, int verbose, int count)
         return;
     }
 
+    unsigned long long rx_speed = 0;
+    unsigned long long tx_speed = 0;
+    int baseline = 0;
+
     if (first_call)
     {
         previous = current;
         first_call = 0;
-        if (verbose)
-        {
-            printf("[%d] Network: Initial baseline established\n", count);
-        }
-        return;
+        baseline = 1;
+    }
+    else
+    {
+        rx_speed = (current.rx_bytes - previous.rx_bytes) / interval;
+        tx_speed = (current.tx_bytes - previous.tx_bytes) / interval;
+        previous = current;
     }
 
-    unsigned long long rx_speed = (current.rx_bytes - previous.rx_bytes) / interval;
-    unsigned long long tx_speed = (current.tx_bytes - previous.tx_bytes) / interval;
-
-    printf("[%d] Current Transfer Rates: Download - %llu\t|\tUpload - %llu\n", count, rx_speed, tx_speed);
-
-    previous = current;
-
-    return;
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer),
+             "{\"rx_bytes_per_sec\":%llu,\"tx_bytes_per_sec\":%llu,\"baseline\":%s}\n",
+             rx_speed,
+             tx_speed,
+             baseline ? "true" : "false");
+    write_network_fifo(fifo_path, buffer, verbose);
 }

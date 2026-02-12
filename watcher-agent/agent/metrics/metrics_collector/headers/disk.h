@@ -10,6 +10,6 @@ typedef struct
 } Disk_usage;
 
 int read_disk_usage(Disk_usage *stats);
-void get_disk_usage(int verbose, int count);
+void get_disk_usage(int verbose, int count, const char *fifo_path);
 
 #endif

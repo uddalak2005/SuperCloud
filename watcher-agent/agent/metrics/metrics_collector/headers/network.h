@@ -8,6 +8,6 @@ typedef struct
 } Network_Usage;
 
 int read_network_stats(Network_Usage *stats);
-void get_network_stats(int interval, int verbose, int count);
+void get_network_stats(int interval, int verbose, int count, const char *fifo_path);
 
 #endif

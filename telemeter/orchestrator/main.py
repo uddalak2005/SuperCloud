@@ -2,15 +2,16 @@ import os
 import json
 import time
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 
-FIFO_PATH = "../agent/fifo/primary.fifo"
-BACKEND_URL = "http://backend:8000/anomaly"
+BASE_DIR = os.getcwd()
+FIFO_PATH = os.path.join(BASE_DIR, "agent/fifo/primary.fifo")
+BACKEND_URL ="http://host.docker.internal:8000/anomaly"
 HOSTNAME = os.uname().nodename
 
 
 def log(msg):
-    print(f"[{datetime.utcnow().isoformat()}] {msg}")
+    print(f"[{datetime.now(timezone.utc).isoformat()}] {msg}")
 
 
 def detect_anomaly(data):
@@ -51,16 +52,16 @@ def detect_anomaly(data):
         anomalies.append(("network_tx_spike", "warning"))
 
     if anomalies:
-        log(f"🚨 Anomaly detected: {anomalies}")
+        log(f" Anomaly detected: {anomalies}")
     else:
-        log("✅ No anomaly detected")
+        log(" No anomaly detected")
 
     return anomalies
 
 
 def send_to_backend(original_data, anomaly_type, severity):
     payload = {
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
         "host": HOSTNAME,
         "anomaly_type": anomaly_type,
         "severity": severity,
@@ -69,21 +70,21 @@ def send_to_backend(original_data, anomaly_type, severity):
 
     try:
         response = requests.post(BACKEND_URL, json=payload, timeout=5)
-        log(f"📡 Sent {anomaly_type} → Backend status: {response.status_code}")
+        log(f" Sent {anomaly_type} → Backend status: {response.status_code}")
     except Exception as e:
-        log(f"❌ BACKEND ERROR: {e}")
+        log(f" BACKEND ERROR: {e}")
 
 
 def main():
-    log("🚀 Orchestrator Started...")
+    log(" Orchestrator Started...")
 
     while True:
-        log("👂 Waiting for FIFO data...")
+        log(" Waiting for FIFO data...")
 
         with open(FIFO_PATH, "r") as fifo:
             for line in fifo:
                 try:
-                    log(f"📥 Raw Data: {line.strip()}")
+                    log(f" Raw Data: {line.strip()}")
 
                     data = json.loads(line.strip())
 
@@ -93,7 +94,7 @@ def main():
                         send_to_backend(data, anomaly_type, severity)
 
                 except Exception as e:
-                    log(f"❌ PARSE ERROR: {e}")
+                    log(f" BACKEND ERROR: {e}")
 
         time.sleep(1)
 

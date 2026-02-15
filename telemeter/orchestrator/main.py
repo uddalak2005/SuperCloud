@@ -2,16 +2,19 @@ import os
 import json
 import time
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 
-FIFO_PATH = "../agent/fifo/primary.fifo"
-LOG_FIFO = "../agent/fifo/logs.fifo"
+# Paths
+BASE_DIR = os.getcwd()
+FIFO_PATH = os.path.join(BASE_DIR, "agent/fifo/primary.fifo")
+LOG_FIFO = os.path.join(BASE_DIR, "agent/fifo/logs.fifo")
+
 BACKEND_URL = "http://backend:8000/anomaly"
 HOSTNAME = os.uname().nodename
 
 
 def log(msg):
-    print(f"[{datetime.utcnow().isoformat()}] {msg}")
+    print(f"[{datetime.now(timezone.utc).isoformat()}] {msg}")
 
 
 def detect_anomaly(data, logs):
@@ -22,13 +25,14 @@ def detect_anomaly(data, logs):
     disk = data.get("disk", {})
     network = data.get("network", {})
 
-    # Print current metrics snapshot
-    log(f"CPU: {cpu.get('cpu_percent', 0)}% | "
+    log(
+        f"CPU: {cpu.get('cpu_percent', 0)}% | "
         f"MEM: {memory.get('used_percent', 0)}% | "
         f"DISK: {disk.get('used_percent', 0)}% | "
         f"NET RX: {network.get('rx_bytes_per_sec', 0)} | "
         f"NET TX: {network.get('tx_bytes_per_sec', 0)} | "
-        f"LOG : {logs}") 
+        f"LOG LEVEL: {logs.get('level', 'N/A')}"
+    )
 
     # CPU
     if cpu.get("cpu_percent", 0) > 90:
@@ -51,10 +55,10 @@ def detect_anomaly(data, logs):
         anomalies.append(("network_rx_spike", "warning"))
     if network.get("tx_bytes_per_sec", 0) > 10_000_000:
         anomalies.append(("network_tx_spike", "warning"))
-        
-    #Logs
-    if logs.get("level", "") == "ERROR" or logs.get("level", "") == "WARN" :
-        anomalies.append(("Logs", logs))
+
+    # Logs
+    if logs.get("level") in ["ERROR", "WARN"]:
+        anomalies.append(("log_issue", "warning"))
 
     if anomalies:
         log(f"Anomaly detected: {anomalies}")
@@ -66,12 +70,12 @@ def detect_anomaly(data, logs):
 
 def send_to_backend(original_data, anomaly_type, severity, logs):
     payload = {
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
         "host": HOSTNAME,
         "anomaly_type": anomaly_type,
         "severity": severity,
         "metrics": original_data,
-        "logs" : logs
+        "logs": logs
     }
 
     try:
@@ -81,55 +85,62 @@ def send_to_backend(original_data, anomaly_type, severity, logs):
         log(f"BACKEND ERROR: {e}")
 
 
+def read_fifo_blocking(path):
+    try:
+        with open(path, "r") as fifo:
+            line = fifo.readline()
+            if line:
+                return json.loads(line.strip())
+    except Exception as e:
+        log(f"FIFO READ ERROR ({path}): {e}")
+    return {}
+
+
+def read_log_fifo_nonblocking(path):
+    logs = {}
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+        with os.fdopen(fd) as fifo:
+            while True:
+                line = fifo.readline()
+                if not line:
+                    break
+                logs = json.loads(line.strip())
+    except BlockingIOError:
+        pass
+    except Exception as e:
+        log(f"LOG FIFO ERROR: {e}")
+
+    return logs
+
+
 def main():
     log("Orchestrator Started...")
 
     while True:
-        data = {}
-        logs = {}
-        new_log_received = False
-
         log("Waiting for FIFO data...")
 
-        try:
-            with open(FIFO_PATH, "r") as fifo:
-                line = fifo.readline()
-                if line:
-                    log(f"Raw Data: {line.strip()}")
-                    data = json.loads(line.strip())
-        except Exception as e:
-            log(f"FIFO_PATH ERROR: {e}")
+        # Read metrics
+        data = read_fifo_blocking(FIFO_PATH)
+
+        if not data:
             time.sleep(2)
             continue
 
-        try:
-            fd = os.open(LOG_FIFO, os.O_RDONLY | os.O_NONBLOCK)
-            with os.fdopen(fd) as fifo:
-                while True:
-                    line = fifo.readline()
-                    if not line:
-                        break 
+        log(f"Raw Data: {data}")
 
-                    log(f"Raw Log Data: {line.strip()}")
-                    logs = json.loads(line.strip())
-                    new_log_received = True
+        # Read logs (non-blocking)
+        logs = read_log_fifo_nonblocking(LOG_FIFO)
 
-        except Exception as e:
-            log(f"LOG_FIFO ERROR: {e}")
+        # Detect anomaly
+        anomalies = detect_anomaly(data, logs)
 
-        if new_log_received:
-            anomalies = detect_anomaly(data, logs)
-
-            if anomalies:
-                log(f"Anomaly detected: {anomalies}")
-
-                for anomaly_type, severity in anomalies:
-                    try:
-                        send_to_backend(data, anomaly_type, severity, logs)
-                    except Exception as e:
-                        log(f"BACKEND ERROR: {e}")
+        # Send to backend if anomalies exist
+        for anomaly_type, severity in anomalies:
+            send_to_backend(data, anomaly_type, severity, logs)
 
         time.sleep(5)
+
 
 if __name__ == "__main__":
     main()

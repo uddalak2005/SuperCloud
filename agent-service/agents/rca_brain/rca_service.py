@@ -14,13 +14,13 @@ async def health_check():
 
 
 @app.post("/analyze")
-async def analyze(state: Dict[str, Any]):
+async def analyze(telemetry_payload: Dict[str, Any]):
     """
-    Receives full incident state from orchestrator
+    Receives full incident telemetry payload from orchestrator
     and performs LLM-based RCA.
     """
     try:
-        result = await rca_agent.get_action(state)
+        result = await rca_agent.get_action(telemetry_payload)
         return result
 
     except Exception as e:
@@ -29,7 +29,7 @@ async def analyze(state: Dict[str, Any]):
 
 if __name__ == "__main__":
     uvicorn.run(
-        "service:app",
+        "rca_service:app",
         host="0.0.0.0",
         port=8002,
         reload=True

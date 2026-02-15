@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+
+  detector:
+    build:
+      context: .
+      dockerfile: agents/detector/Dockerfile
+    container_name: smartops-detector
+    ports:
+      - "8001:8001"
+    restart: unless-stopped
+    networks:
+      - smartops-network
+
+  rca:
+    build:
+      context: .
+      dockerfile: agents/rca_brain/Dockerfile
+    container_name: smartops-rca
+    ports:
+      - "8002:8002"
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks:
+      - smartops-network
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: agents/orchestrator/Dockerfile
+    container_name: smartops-orchestrator
+    ports:
+      - "8000:8000"
+    depends_on:
+      - detector
+      - rca
+    restart: unless-stopped
+    networks:
+      - smartops-network
+
+networks:
+  smartops-network:
+    driver: bridge

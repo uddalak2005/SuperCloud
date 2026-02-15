@@ -1,28 +1,30 @@
-# agents/rca_brain.py
+import os
 import json
-from base_agent import BaseAgent
-from groq import AsyncGroq
+import re
 from typing import Dict, Any
+from dotenv import load_dotenv
+from groq import AsyncGroq
+from agents.base_agent import BaseAgent
 
+
+load_dotenv()
 
 
 class RCABrainAgent(BaseAgent):
     def __init__(self, agent_id: str):
         super().__init__(agent_id, "rca_brain")
-        
 
-    async def get_action(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Perform root cause analysis using LLM reasoning over incident context
-        """
+        self.groq_api_key = os.getenv("GROQ_API_KEY")
 
-        # Build investigation context directly from incident state
-        investigation_context = self.build_investigation_context(state)
+        if not self.groq_api_key:
+            raise ValueError("GROQ_API_KEY not found in environment variables")
 
-        # Use LLM for reasoning
-        rca_result = await self.perform_llm_reasoning(
-            investigation_context
-        )
+        self.client = AsyncGroq(api_key=self.groq_api_key)
+
+
+    async def get_action(self, telemetry_payload: Dict[str, Any]) -> Dict[str, Any]:
+        investigation_context = self.build_investigation_context(telemetry_payload)
+        rca_result = await self.perform_llm_reasoning(investigation_context)
 
         return {
             "action": "rca_complete",
@@ -34,67 +36,82 @@ class RCABrainAgent(BaseAgent):
             }
         }
 
-    def build_investigation_context(self, state: Dict[str, Any]) -> str:
-        """
-        Build RCA investigation context directly from incident state dict
-        """
 
+    def build_investigation_context(self, telemetry_payload: Dict[str, Any]) -> str:
         try:
-            pretty_state = json.dumps(state, indent=2, default=str)
+            pretty_telemetry_payload = json.dumps(
+                telemetry_payload, indent=2, default=str
+            )
         except Exception:
-            pretty_state = str(state)
+            pretty_telemetry_payload = str(telemetry_payload)
 
         context = f"""
-            Below is the full incident telemetry state detected by the monitoring system.
+            You are provided with an incident detected by an automated monitoring system.
 
             INCIDENT STATE:
-            {pretty_state}
-            Use this information to perform root cause analysis.
+            {pretty_telemetry_payload}
             """
-        return context      
+        return context
+
 
     async def perform_llm_reasoning(self, context: str) -> Dict:
-        """
-        Use LLM to reason about root cause
-        """
-
         prompt = f"""
-            You are an expert Site Reliability Engineer.
-
-            Below is an incident detected by an automated monitoring system.
+            You are a senior Site Reliability Engineer performing structured root cause analysis.
 
             {context}
 
-            Your task:
-            1. Identify the most likely root cause
-            2. List affected services
-            3. Provide a confidence score (0-1)
-            4. Recommend concrete remediation steps
+SYSTEM BASELINE ASSUMPTIONS:
+- CPU usage baseline: < 70%
+- Memory usage baseline: < 75%
+- Disk usage baseline: < 80%
+- Any metric above 100% is invalid and indicates monitoring error.
 
-            Respond ONLY in valid JSON with keys:
-            root_cause, affected_services, confidence, fixes
-            """
+Your task:
+1. Identify the most likely root cause.
+2. List affected services.
+3. Provide a confidence score between 0 and 1.
+4. Provide clear remediation steps.
 
-        client = AsyncGroq()
+CRITICAL OUTPUT RULES:
+- Return ONLY a raw JSON object.
+- No explanations.
+- No reasoning text.
+- No <think> blocks.
+- No markdown.
+- Output must start with '{{' and end with '}}'.
 
-        response = await client.chat.completions.create(
-        model="qwen/qwen3-32b",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.6,
-        max_completion_tokens=4096,
-        top_p=0.95,
-        reasoning_effort="default",
-        stream=False   
-        )
-
-        content = response.choices[0].message.content
+Required JSON keys:
+root_cause, affected_services, confidence, fixes
+"""
 
         try:
-            return json.loads(content)
-        except Exception:
+            response = await self.client.chat.completions.create(
+                model="qwen/qwen3-32b",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.4,
+                max_completion_tokens=2048,
+                top_p=0.9,
+                stream=False
+            )
+
+            content = response.choices[0].message.content.strip()
+
+           
+            matches = re.findall(r"\{[\s\S]*?\}", content)
+
+            if not matches:
+                raise ValueError("No JSON object found in LLM output")
+            json_text = matches[-1]  
+            parsed = json.loads(json_text)
+            
+            return parsed
+
+        except Exception as e:
+            print("RCA PARSE ERROR:", str(e))
+
             return {
-                "root_cause": "Unable to determine",
+                "root_cause": "Invalid LLM JSON response",
                 "affected_services": [],
                 "confidence": 0.0,
                 "fixes": []
-         }
+            }

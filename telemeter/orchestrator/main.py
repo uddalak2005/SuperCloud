@@ -6,7 +6,8 @@ from datetime import datetime, timezone
 
 BASE_DIR = os.getcwd()
 FIFO_PATH = os.path.join(BASE_DIR, "agent/fifo/primary.fifo")
-BACKEND_URL ="http://host.docker.internal:8000/anomaly"
+BACKEND_URL ="http://orchestrator:8000/anomaly"
+
 HOSTNAME = os.uname().nodename
 
 

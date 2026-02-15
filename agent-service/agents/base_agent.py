@@ -11,9 +11,9 @@ class BaseAgent(ABC):
         self.memory = []
     
     @abstractmethod
-    async def get_action(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    async def get_action(self, telemetry_payload: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Process state and return next action
+        Process telemetry payload and return next action
         Returns: {
             "action":"get_logs|get_metrics|exec_shell|...",
             "parameters":{...}

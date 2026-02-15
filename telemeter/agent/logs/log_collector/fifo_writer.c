@@ -89,7 +89,7 @@ int ensure_fifo_open(int *fifo_fd)
         return -1;
     }
 
-    int fd = open(FIFO_PATH, O_RDWR | O_NONBLOCK | O_CLOEXEC);
+    int fd = open(FIFO_PATH, O_RDWR | O_NONBLOCK);
     if (fd < 0)
     {
         return -1;

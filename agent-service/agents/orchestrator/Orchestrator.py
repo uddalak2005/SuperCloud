@@ -1,4 +1,3 @@
-
 import httpx
 import uuid
 from datetime import datetime, timezone
@@ -20,7 +19,8 @@ class Orchestrator:
     def __init__(
         self,
         incident_logger=None,
-        config: Optional[Dict[str, Any]] = None
+        config: Optional[Dict[str, Any]] = None,
+        websocket_manager=None
     ):
         self.logger = incident_logger
         self.config = config or self._default_config()
@@ -29,6 +29,7 @@ class Orchestrator:
         self.detector_service_url = self.config.get("detector_service_url")
         self.rca_service_url = self.config.get("rca_service_url")
         self.fixer_service_url = self.config.get("fixer_service_url")
+        self.websocket_manager = websocket_manager
 
         # Runtime state
         self.active_incidents: Dict[str, Dict[str, Any]] = {}
@@ -97,6 +98,7 @@ class Orchestrator:
         print("Incident Record:", incident_record)
 
         self.active_incidents[incident_id] = incident_record
+        await self._broadcast_update("incident_detected", incident_record)
 
         params = cast(Dict[str, Any], detection_result.get("parameters", {}))
         severity = params.get("severity")
@@ -141,6 +143,10 @@ class Orchestrator:
                 raise ValueError("Invalid RCA response format")
 
             incident["rca_result"] = rca_result
+            await self._broadcast_update("rca_completed", {
+                "incident_id": incident_id,
+                "rca_result": rca_result
+            })
 
             rca_timeline_entry = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -188,6 +194,68 @@ class Orchestrator:
 
     def get_status(self) -> Dict[str, Any]:
         return {
-            "active_incidents": len(self.active_incidents),
             "config": self.config
         }
+
+
+
+# Added by Souherdya - Websocket for UI Updates
+# -----------------------------------------------------------------------------
+
+from fastapi import WebSocket, WebSocketDisconnect
+from typing import List, Dict, Any
+from datetime import datetime, timezone
+from collections import deque
+import asyncio
+
+class WebSocketManager:
+    def __init__(self, buffer_size: int = 5000):
+        self.active_connections: List[WebSocket] = []
+        self.event_buffer = deque(maxlen=buffer_size)
+        self.lock = asyncio.Lock()
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        async with self.lock:
+            self.active_connections.append(websocket)
+
+        # Replay buffered events to new client
+        for event in self.event_buffer:
+            await websocket.send_json(event)
+
+    async def disconnect(self, websocket: WebSocket):
+        async with self.lock:
+            if websocket in self.active_connections:
+                self.active_connections.remove(websocket)
+
+    async def emit(self, event_type: str, data: Dict[str, Any]):
+        """
+        Create an event and broadcast it
+        """
+        message = {
+            "type": event_type,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "data": data
+        }
+
+        # Store for replay
+        self.event_buffer.append(message)
+
+        await self._broadcast(message)
+
+    async def _broadcast(self, message: Dict[str, Any]):
+        dead_connections = []
+
+        async with self.lock:
+            for ws in self.active_connections:
+                try:
+                    await ws.send_json(message)
+                except Exception:
+                    dead_connections.append(ws)
+
+            # Cleanup dead sockets
+            for ws in dead_connections:
+                self.active_connections.remove(ws)
+
+
+    

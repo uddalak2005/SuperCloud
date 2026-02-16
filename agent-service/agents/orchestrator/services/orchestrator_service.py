@@ -1,12 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from typing import Dict, Any
 import uvicorn
-
-
 from agents.orchestrator.orchestrator import Orchestrator
-
-
-
+from fastapi import WebSocket, WebSocketDisconnect
+from agents.orchestrator.Orchestrator import WebSocketManager
+from pydantic import BaseModel
 
 app = FastAPI(title="Orchestrator Service")
 
@@ -48,6 +46,29 @@ async def receive_anomaly(payload: Dict[str, Any]):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+ws_manager = WebSocketManager(buffer_size=5000)
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await ws_manager.connect(websocket)
+
+    try:
+        while True:
+            # Keep connection alive; UI may send pings
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        await ws_manager.disconnect(websocket)
+
+
+class EventIn(BaseModel):
+    type: str
+    data: Dict[str, Any]
+
+@app.post("/internal/event")
+async def receive_event(event: EventIn):
+    await ws_manager.emit(event.type, event.data)
+    return {"status": "ok"}
 
 @app.get("/status")
 async def status():

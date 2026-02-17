@@ -1,3 +1,4 @@
+from pyexpat import features
 from agents.base_agent import BaseAgent
 from typing import Dict, Any, List
 import numpy as np
@@ -23,26 +24,46 @@ class DetectorAgent(BaseAgent):
 
         anomaly, score = self.detect_statistical_anomaly(features)
 
-        if anomaly:
-            severity = self.calculate_severity(score)
+    
+        logs = telemetry_payload.get("logs")
+        log_error_detected = False
+
+        if logs:        
+            if isinstance(logs, dict):
+                log_error_detected = logs.get("level", "").upper() == "ERROR"
+
+            elif isinstance(logs, list):
+                for log in logs:
+                    if log.get("level", "").upper() == "ERROR":
+                        log_error_detected = True
+                        break
+
+            if anomaly or log_error_detected:
+
+                severity = self.calculate_severity(score)
 
             return {
                 "action": "alert",
                 "parameters": {
                     "anomaly_score": float(score),
                     "severity": severity,
-                    "trigger_rca": severity in ["HIGH", "CRITICAL"],
+                    "trigger_rca": (
+                        severity in ["HIGH", "CRITICAL"] 
+                        or log_error_detected  
+                    ),
                     "features": {
                         "cpu_percent": features[0],
                         "memory_percent": features[1],
                         "disk_percent": features[2],
                         "rx_bytes_per_sec": features[3],
                         "tx_bytes_per_sec": features[4],
-                    }
+                    },
+                    "log_error_detected": log_error_detected   
                 }
             }
 
         return self.no_action_response()
+
 
 
     def extract_features(self, payload: Dict[str, Any]) -> List[float] | None:

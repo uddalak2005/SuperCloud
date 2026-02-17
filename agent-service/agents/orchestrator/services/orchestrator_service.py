@@ -3,7 +3,7 @@ from typing import Dict, Any
 import uvicorn
 from agents.orchestrator.orchestrator import Orchestrator
 from fastapi import WebSocket, WebSocketDisconnect
-from agents.orchestrator.Orchestrator import WebSocketManager
+from agents.orchestrator.orchestrator import WebSocketManager
 from pydantic import BaseModel
 
 app = FastAPI(title="Orchestrator Service")

@@ -101,12 +101,13 @@ class Orchestrator:
         await self._broadcast_update("incident_detected", incident_record)
 
         params = cast(Dict[str, Any], detection_result.get("parameters", {}))
-        severity = params.get("severity")
+        trigger_rca = params.get("trigger_rca", False)
 
-        if severity in ["HIGH", "CRITICAL"]:
+        if trigger_rca:
             await self._run_rca_pipeline(incident_id)
         else:
             await self._alert_only(incident_id)
+
 
 
 
@@ -137,7 +138,7 @@ class Orchestrator:
                 response.raise_for_status()
                 rca_result = response.json()
                 
-                print(f"[Orchestrator] RCA result for incident {incident_id}:", rca_result)
+                #print(f"[Orchestrator] RCA result for incident {incident_id}:", rca_result)
 
             if "parameters" not in rca_result:
                 raise ValueError("Invalid RCA response format")

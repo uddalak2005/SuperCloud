@@ -9,13 +9,18 @@ BASE_DIR = os.getcwd()
 FIFO_PATH = os.path.join(BASE_DIR, "agent/fifo/primary.fifo")
 LOG_FIFO = os.path.join(BASE_DIR, "agent/fifo/logs.fifo")
 
-BACKEND_URL = "http://backend:8000/anomaly"
+
+
+BACKEND_URL = "http://orchestrator:8000/anomaly"
 HOSTNAME = os.uname().nodename
-WEBSOCKET_BACKEND_URL = "http://backend:8000/ws"
+WEBSOCKET_BACKEND_URL = "http://orchestrator:8000/ws"
 
 
 def log(msg):
     print(f"[{datetime.now(timezone.utc).isoformat()}] {msg}")
+    
+log(FIFO_PATH)
+log(LOG_FIFO)
 
 
 def detect_anomaly(data, logs):

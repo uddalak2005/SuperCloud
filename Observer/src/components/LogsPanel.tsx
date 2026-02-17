@@ -90,47 +90,47 @@ export function LogsPanel() {
   }, []);
 
   // WebSocket - Actual logs
-  // useEffect(() => {
-  //   let ws: WebSocket | null = null;
-  //   let reconnectTimeout: NodeJS.Timeout;
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: NodeJS.Timeout;
 
-  //   const connect = () => {
-  //     ws = new WebSocket("ws://localhost:8000/ws");
+    const connect = () => {
+      ws = new WebSocket("ws://localhost:8000/ws");
 
-  //     ws.onopen = () => {
-  //       console.log("[WS] Connected");
-  //     };
+      ws.onopen = () => {
+        console.log("[WS] Connected");
+      };
 
-  //     ws.onmessage = (event) => {
-  //       try {
-  //         const msg = JSON.parse(event.data);
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
 
-  //         if (msg.type === "log") {
-  //           setLogs((prev) => [...prev.slice(-29), msg.data]);
-  //         }
-  //       } catch (err) {
-  //         console.error("[WS] Invalid message", err);
-  //       }
-  //     };
+          if (msg.type === "log") {
+            setLogs((prev) => [...prev.slice(-29), msg.data]);
+          }
+        } catch (err) {
+          console.error("[WS] Invalid message", err);
+        }
+      };
 
-  //     ws.onclose = () => {
-  //       console.warn("[WS] Disconnected, retrying...");
-  //       reconnectTimeout = setTimeout(connect, 2000);
-  //     };
+      ws.onclose = () => {
+        console.warn("[WS] Disconnected, retrying...");
+        reconnectTimeout = setTimeout(connect, 2000);
+      };
 
-  //     ws.onerror = (err) => {
-  //       console.error("[WS] Error", err);
-  //       ws?.close();
-  //     };
-  //   };
+      ws.onerror = (err) => {
+        console.error("[WS] Error", err);
+        ws?.close();
+      };
+    };
 
-  //   connect();
+    connect();
 
-  //   return () => {
-  //     ws?.close();
-  //     clearTimeout(reconnectTimeout);
-  //   };
-  // }, []);
+    return () => {
+      ws?.close();
+      clearTimeout(reconnectTimeout);
+    };
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {

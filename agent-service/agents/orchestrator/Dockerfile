@@ -8,12 +8,13 @@ ENV PYTHONUNBUFFERED=1
 RUN apt-get update && apt-get install -y build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-COPY agent-service/requirement.txt .
+# Copy requirements from build context root (agent-service/)
+COPY requirement.txt .
 
 RUN pip install --no-cache-dir -r requirement.txt
 
-# Copy the whole agents package, not just orchestrator subdirectory
-COPY agent-service/agents/ ./agents/
+# Copy entire agent-service content
+COPY . .
 
 EXPOSE 8000
 

@@ -14,9 +14,9 @@ COPY . /app
 
 RUN pip install --no-cache-dir requests
 
-RUN make -C telemeter/agent clean && \
-    make -C telemeter/agent
+RUN make -C agent clean && \
+    make -C agent
 
-RUN chmod +x telemeter/entrypoint.sh
+RUN chmod +x entrypoint.sh
 
-ENTRYPOINT ["/app/telemeter/entrypoint.sh"]
+ENTRYPOINT ["./entrypoint.sh"]

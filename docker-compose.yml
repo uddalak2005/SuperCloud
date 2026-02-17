@@ -3,16 +3,16 @@ version: "3.9"
 services:
   telemeter:
     build:
-      context: .
-      dockerfile: telemeter/Dockerfile
+      context: ./telemeter
+      dockerfile: dockerfile
     container_name: watcher-dev
     networks:
       - smartops-network
 
   detector:
     build:
-      context: .
-      dockerfile: agent-service/agents/detector/Dockerfile
+      context: ./agent-service/
+      dockerfile: agents/detector/Dockerfile
     container_name: smartops-detector
     ports:
       - "8001:8001"
@@ -21,8 +21,8 @@ services:
 
   rca:
     build:
-      context: .
-      dockerfile: agent-service/agents/rca_brain/Dockerfile
+      context: ./agent-service
+      dockerfile: agents/rca_brain/Dockerfile
     container_name: smartops-rca
     ports:
       - "8002:8002"
@@ -33,8 +33,8 @@ services:
 
   orchestrator:
     build:
-      context: .
-      dockerfile: agent-service/agents/orchestrator/Dockerfile
+      context: ./agent-service/
+      dockerfile: agents/orchestrator/Dockerfile
     container_name: smartops-orchestrator
     ports:
       - "8000:8000"
@@ -46,11 +46,11 @@ services:
 
   observer:
     build:
-      context: .
-      dockerfile: observer/dockerfile
+      context: ./observer
+      dockerfile: dockerfile
     container_name: observer
     ports:
-      - "8080:8080"
+      - "80:80"
     networks:
       - smartops-network
     depends_on:

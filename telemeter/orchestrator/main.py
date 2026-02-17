@@ -6,11 +6,12 @@ from datetime import datetime, timezone
 
 # Paths
 BASE_DIR = os.getcwd()
-FIFO_PATH = os.path.join(BASE_DIR, "telemeter/agent/fifo/primary.fifo")
-LOG_FIFO = os.path.join(BASE_DIR, "telemeter/agent/fifo/logs.fifo")
+FIFO_PATH = os.path.join(BASE_DIR, "agent/fifo/primary.fifo")
+LOG_FIFO = os.path.join(BASE_DIR, "agent/fifo/logs.fifo")
 
-BACKEND_URL = "http://orchestrator:8000/anomaly"
+BACKEND_URL = "http://backend:8000/anomaly"
 HOSTNAME = os.uname().nodename
+WEBSOCKET_BACKEND_URL = "http://backend:8000/ws"
 
 
 def log(msg):
@@ -121,7 +122,7 @@ def main():
         log("Waiting for FIFO data...")
 
         # Read metrics
-        data = read_fifo_blocking(METRIC_FIFO)
+        data = read_fifo_blocking(FIFO_PATH)
 
         if not data:
             time.sleep(2)

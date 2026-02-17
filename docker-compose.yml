@@ -44,6 +44,18 @@ services:
     networks:
       - smartops-network
 
+  observer:
+    build:
+      context: .
+      dockerfile: observer/dockerfile
+    container_name: observer
+    ports:
+      - "8080:8080"
+    networks:
+      - smartops-network
+    depends_on:
+      - orchestrator
+
 networks:
   smartops-network:
     driver: bridge

@@ -121,7 +121,7 @@ def main():
         log("Waiting for FIFO data...")
 
         # Read metrics
-        data = read_fifo_blocking(FIFO_PATH)
+        data = read_fifo_blocking(METRIC_FIFO)
 
         if not data:
             time.sleep(2)
@@ -131,6 +131,13 @@ def main():
 
         # Read logs (non-blocking)
         logs = read_log_fifo_nonblocking(LOG_FIFO)
+
+        # send ALL logs to websocket backend
+        try:
+            response = requests.post(WEBSOCKET_BACKEND_URL, json=logs, timeout=5)
+            log(f"Sent logs to websocket backend status: {response.status_code}")
+        except Exception as e:
+            log(f"WEBSOCKET BACKEND ERROR: {e}")
 
         # Detect anomaly
         anomalies = detect_anomaly(data, logs)

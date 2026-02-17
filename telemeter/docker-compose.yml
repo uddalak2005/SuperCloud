@@ -1,12 +1,7 @@
-version: "3.9"
-
 services:
-  dev:
+  telemeter:
     build:
       context: .
-      dockerfile: dockerfile
+      dockerfile: agent-service/Dockerfile
     container_name: watcher-dev
-    volumes:
-      - .:/app
-    working_dir: /app
-    tty: true
+    restart: unless-stopped

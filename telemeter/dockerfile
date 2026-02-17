@@ -8,14 +8,15 @@ RUN apt-get update && apt-get install -y \
     make \
     build-essential \
     procps \
-    vim \
-    git \
-    strace \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY . /app
 
 RUN pip install --no-cache-dir requests
 
-CMD ["bash"]
+RUN make -C telemeter/agent clean && \
+    make -C telemeter/agent
+
+RUN chmod +x telemeter/entrypoint.sh
+
+ENTRYPOINT ["/app/telemeter/entrypoint.sh"]

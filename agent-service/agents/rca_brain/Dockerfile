@@ -10,12 +10,12 @@ RUN apt-get update && apt-get install -y build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy root requirements
-COPY requirement.txt .
+COPY agent-service/requirement.txt .
 
 RUN pip install --no-cache-dir -r requirement.txt
 
 # Copy entire project into container
-COPY . .
+COPY agent-service/agents/ ./agents/
 
 # Expose RCA port
 EXPOSE 8002

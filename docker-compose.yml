@@ -41,8 +41,19 @@ services:
     depends_on:
       - detector
       - rca
+      # - fixer   
     networks:
       - smartops-network
+
+  # fixer:
+  #   build:
+  #     context: ./agent-service
+  #     dockerfile: agents/fixer/Dockerfile
+  #   container_name: smartops-fixer
+  #   ports:
+  #     - "8003:8003"
+  #   networks:
+  #     - smartops-network
 
   observer:
     build:

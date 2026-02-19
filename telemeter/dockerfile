@@ -14,9 +14,8 @@ COPY . /app
 
 RUN pip install --no-cache-dir requests
 
-RUN make -C agent clean && \
-    make -C agent
+RUN make -C agent clean && make -C agent
 
-RUN chmod +x entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-ENTRYPOINT ["./entrypoint.sh"]
+ENTRYPOINT ["/app/entrypoint.sh"]

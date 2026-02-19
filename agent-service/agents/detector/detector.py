@@ -8,7 +8,6 @@ class DetectorAgent(BaseAgent):
     def __init__(self, agent_id: str):
         super().__init__(agent_id, "detector")
 
-        # Static statistical limits 
         self.cpu_threshold = 85
         self.memory_threshold = 85
         self.disk_threshold = 90
@@ -24,23 +23,20 @@ class DetectorAgent(BaseAgent):
 
         anomaly, score = self.detect_statistical_anomaly(features)
 
-    
-        logs = telemetry_payload.get("logs")
+        logs = telemetry_payload.get("logs", {})
         log_error_detected = False
 
-        if logs:        
-            if isinstance(logs, dict):
-                log_error_detected = logs.get("level", "").upper() == "ERROR"
+        if isinstance(logs, dict):
+            log_error_detected = logs.get("level", "").upper() == "ERROR"
 
-            elif isinstance(logs, list):
-                for log in logs:
-                    if log.get("level", "").upper() == "ERROR":
-                        log_error_detected = True
-                        break
+        elif isinstance(logs, list):
+            for log in logs:
+                if log.get("level", "").upper() == "ERROR":
+                    log_error_detected = True
+                    break
 
-            if anomaly or log_error_detected:
-
-                severity = self.calculate_severity(score)
+        if anomaly or log_error_detected:
+            severity = self.calculate_severity(score)
 
             return {
                 "action": "alert",
@@ -61,7 +57,7 @@ class DetectorAgent(BaseAgent):
                     "log_error_detected": log_error_detected   
                 }
             }
-
+      
         return self.no_action_response()
 
 
@@ -130,7 +126,6 @@ class DetectorAgent(BaseAgent):
             return "MEDIUM"
         else:
             return "LOW"
-
 
 
     def no_action_response(self) -> Dict[str, Any]:

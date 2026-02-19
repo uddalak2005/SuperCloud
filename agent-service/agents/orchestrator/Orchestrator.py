@@ -25,39 +25,32 @@ class Orchestrator:
         self.logger = incident_logger
         self.config = config or self._default_config()
 
-        # External service URLs
         self.detector_service_url = self.config.get("detector_service_url")
         self.rca_service_url = self.config.get("rca_service_url")
         self.fixer_service_url = self.config.get("fixer_service_url")
         self.websocket_manager = websocket_manager
 
-        # Runtime state
         self.active_incidents: Dict[str, Dict[str, Any]] = {}
 
     def _default_config(self) -> Dict[str, Any]:
         return {
-            "enable_auto_remediation": True,
+            "enable_auto_remediation": False, #change to True to enable auto remediation
             "detector_service_url": "http://detector:8001",
             "rca_service_url": "http://rca:8002",
             "fixer_service_url": "http://fixer:8003"
         }
 
     async def process_telemetry(self, telemetry_payload: Dict[str, Any]) -> Dict[str, Any]:
-       
+
         detection_result = await self._run_detection(telemetry_payload)
         print("DETECTION RESULT:", detection_result)
-
 
         if detection_result.get("action") == "alert":
             await self._handle_incident(detection_result, telemetry_payload)
 
         return {"status": "processed"}
 
-
     async def _run_detection(self, telemetry_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Sends full structured telemetry payload to detector service.
-        """
 
         try:
             async with httpx.AsyncClient() as client:
@@ -66,15 +59,12 @@ class Orchestrator:
                     json=telemetry_data,
                     timeout=10
                 )
-
                 response.raise_for_status()
                 return response.json()
 
         except Exception as e:
             print(f"[Orchestrator] Detector service error: {e}")
             return {"action": "error", "error": str(e)}
-
-
 
     async def _handle_incident(
         self,
@@ -84,7 +74,7 @@ class Orchestrator:
 
         incident_id = str(uuid.uuid4())
 
-        print(f"\n[Orchestrator] INCIDENT DETECTED: {incident_id}")
+        print(f"\n[Orchestrator] INCIDENT DETECTED: {incident_id}\n")
 
         incident_record = {
             "incident_id": incident_id,
@@ -95,10 +85,7 @@ class Orchestrator:
             "timeline": []
         }
 
-        print("Incident Record:", incident_record)
-
         self.active_incidents[incident_id] = incident_record
-        await self._broadcast_update("incident_detected", incident_record)
 
         params = cast(Dict[str, Any], detection_result.get("parameters", {}))
         trigger_rca = params.get("trigger_rca", False)
@@ -108,9 +95,6 @@ class Orchestrator:
         else:
             await self._alert_only(incident_id)
 
-
-
-
     async def _run_rca_pipeline(self, incident_id: str):
 
         incident = self.active_incidents[incident_id]
@@ -118,14 +102,14 @@ class Orchestrator:
 
         params = cast(Dict[str, Any], incident.get("detection_result", {}).get("parameters", {}))
 
+      
         rca_state = {
             "incident_id": incident_id,
-            "anomalies": params.get("anomalies", []),
-            "severity": params.get("severity"),
-            "telemetry": incident.get("telemetry_snapshot"),
-            "detection_time": incident.get("detection_time")
+            "severity": params.get("severity", "low"),
+            "anomaly_score": params.get("anomaly_score", 0.0),
+            "metrics": incident.get("telemetry_snapshot", {}).get("metrics", {}),
+            "logs": incident.get("telemetry_snapshot", {}).get("logs", {})
         }
-        
 
         try:
             async with httpx.AsyncClient() as client:
@@ -137,47 +121,69 @@ class Orchestrator:
 
                 response.raise_for_status()
                 rca_result = response.json()
-                
-                #print(f"[Orchestrator] RCA result for incident {incident_id}:", rca_result)
+
+                print(f"[Orchestrator RCA RESULT] {incident_id}: \n", rca_result)
 
             if "parameters" not in rca_result:
                 raise ValueError("Invalid RCA response format")
 
             incident["rca_result"] = rca_result
-            await self._broadcast_update("rca_completed", {
-                "incident_id": incident_id,
-                "rca_result": rca_result
-            })
+            incident["state"] = IncidentState.RCA_IN_PROGRESS.value
 
-            rca_timeline_entry = {
+            incident["timeline"].append({
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "event": "rca_completed",
                 "details": rca_result
-            }
+            })
 
-            #print("[Orchestrator] Timeline Entry:", rca_timeline_entry)
-
-            incident["timeline"].append(rca_timeline_entry)
-
-
-            if self.config.get("enable_auto_remediation", True):
-            # re-enable fixer later when the fixer implementation ready, but for now we will just log the RCA result and mark the incident as resolved.
-            
-            
-            
-            
-            
-            
-            
-                pass
+            if self.config.get("enable_auto_remediation", False):  #Auto remediation toggle
+                await self._auto_remediate(incident_id)
             else:
                 await self._log_incident(incident_id)
 
         except Exception as e:
-            print(f"[Orchestrator] RCA service error: {e}")               
-            print(type(e))
-            print(str(e))
+            print(f"[Orchestrator] RCA service error \n: {e}")
+            incident["state"] = IncidentState.FAILED.value
+            await self._log_incident(incident_id)
 
+    #FIXER endpont
+
+    async def _auto_remediate(self, incident_id: str):
+
+        incident = self.active_incidents.get(incident_id)
+        if not incident:
+            return
+
+        incident["state"] = IncidentState.REMEDIATION_IN_PROGRESS.value
+
+        rca_payload = incident.get("rca_result", {}).get("parameters", {})
+
+        print(f"[Orchestrator] Sending to Fixer for incident {incident_id}")
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.fixer_service_url}/execute",
+                    json=rca_payload,
+                    timeout=30
+                )
+                response.raise_for_status()
+
+                fixer_result = response.json()
+                print(f"[Fixer RESULT] {incident_id}:", fixer_result)
+
+            incident["state"] = IncidentState.RESOLVED.value
+
+            incident["timeline"].append({
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "event": "remediation_completed",
+                "details": fixer_result
+            })
+
+            await self._log_incident(incident_id)
+
+        except Exception as e:
+            print(f"[Orchestrator] Fixer error: {e}")
             incident["state"] = IncidentState.FAILED.value
             await self._log_incident(incident_id)
 
@@ -186,22 +192,23 @@ class Orchestrator:
         await self._log_incident(incident_id)
         self.active_incidents.pop(incident_id, None)
 
-
     async def _log_incident(self, incident_id: str):
         incident = self.active_incidents.get(incident_id)
         if incident and self.logger:
             await self.logger.log_incident(incident)
 
-
     def get_status(self) -> Dict[str, Any]:
         return {
-            "config": self.config
+            "config": self.config,
+            "active_incidents": len(self.active_incidents)
         }
+
 
 
 
 # Added by Souherdya - Websocket for UI Updates
 # -----------------------------------------------------------------------------
+
 
 from fastapi import WebSocket, WebSocketDisconnect
 from typing import List, Dict, Any
@@ -257,6 +264,3 @@ class WebSocketManager:
             # Cleanup dead sockets
             for ws in dead_connections:
                 self.active_connections.remove(ws)
-
-
-    

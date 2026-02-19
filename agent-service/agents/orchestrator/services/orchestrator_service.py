@@ -1,15 +1,15 @@
 from fastapi import FastAPI, HTTPException
 from typing import Dict, Any
 import uvicorn
-from agents.orchestrator.Orchestrator import Orchestrator
+from agents.orchestrator.orchestrator import Orchestrator
 from fastapi import WebSocket, WebSocketDisconnect
-from agents.orchestrator.Orchestrator import WebSocketManager
+from agents.orchestrator.orchestrator import WebSocketManager
 from pydantic import BaseModel
 
 app = FastAPI(title="Orchestrator Service")
 
 config = {
-    "enable_auto_remediation": True,
+    "enable_auto_remediation": False, #change to True to enable auto remediation
     "detector_service_url": "http://detector:8001",
     "rca_service_url": "http://rca:8002",
     "fixer_service_url": "http://fixer:8003"

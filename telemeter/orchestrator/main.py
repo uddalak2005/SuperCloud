@@ -21,7 +21,7 @@ LOG_FIFO = os.path.join(BASE_DIR, "agent/fifo/logs.fifo")
 
 BACKEND_URL = "http://orchestrator:8000/anomaly"
 HOSTNAME = os.uname().nodename
-WEBSOCKET_BACKEND_URL = "http://orchestrator:8000/ws"
+# WEBSOCKET_BACKEND_URL = "http://orchestrator:8000/ws"
 
 
 def log(msg):
@@ -188,8 +188,10 @@ def main():
 
         # send ALL logs to websocket backend
         try:
-            response = requests.post(WEBSOCKET_BACKEND_URL, json=logs, timeout=5)
-            log(f"Sent logs to websocket backend status: {response.status_code}")
+            ws = websocket.create_connection("ws://orchestrator:8000/ws", timeout=5)
+            ws.send(json.dumps(logs))
+            log("Sent logs to websocket backend")
+            ws.close()
         except Exception as e:
             log(f"WEBSOCKET BACKEND ERROR: {e}")
 

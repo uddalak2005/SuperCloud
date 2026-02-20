@@ -3,7 +3,7 @@ from typing import Dict, Any
 import uvicorn
 from agents.orchestrator.orchestrator import Orchestrator
 from fastapi import WebSocket, WebSocketDisconnect
-from agents.orchestrator.orchestrator import WebSocketManager
+from agents.orchestrator.Orchestrator import WebSocketManager
 from pydantic import BaseModel
 
 app = FastAPI(title="Orchestrator Service")
@@ -18,7 +18,7 @@ config = {
 
 orchestrator = Orchestrator(config=config)
 
-@app.get("/health")
+@app.get("/")
 async def health():
     return {
         "status": "ok",
@@ -42,7 +42,6 @@ async def receive_anomaly(payload: Dict[str, Any]):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 ws_manager = WebSocketManager(buffer_size=5000)
 
 @app.websocket("/ws")
@@ -52,7 +51,10 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             # Keep connection alive; UI may send pings
-            await websocket.receive_text()
+            message = await websocket.receive_text()
+            data = json.loads(message)
+
+            await ws_manager.emit("logs", data)
     except WebSocketDisconnect:
         await ws_manager.disconnect(websocket)
 

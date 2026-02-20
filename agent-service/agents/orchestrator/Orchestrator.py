@@ -110,7 +110,7 @@ class Orchestrator:
             "metrics": incident.get("telemetry_snapshot", {}).get("metrics", {}),
             "logs": incident.get("telemetry_snapshot", {}).get("logs", {})
         }
-
+        
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(

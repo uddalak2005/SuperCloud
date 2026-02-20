@@ -187,15 +187,21 @@ Required schema:
             )
 
             content = response.choices[0].message.content.strip()
-            print("LLM RAW RESPONSE:", content)
+            #print("LLM RAW RESPONSE:", content)
 
-            try:
-                parsed = json.loads(content)
-            except Exception:
-                matches = re.findall(r"\{[\s\S]*\}", content)
-                if not matches:
-                    raise ValueError("No JSON object found")
-                parsed = json.loads(matches[-1])
+            # Remove <think> blocks completely
+            cleaned = re.sub(r"<think>[\s\S]*?</think>", "", content).strip()
+
+            print("CLEANED LLM RESPONSE:", cleaned)
+            start = cleaned.find("{")
+            end = cleaned.rfind("}")
+
+            if start == -1 or end == -1:
+                raise ValueError("No JSON object found")
+
+            json_str = cleaned[start:end+1]
+
+            parsed = json.loads(json_str)
 
             validated = self.validate_llm_output(parsed)
 

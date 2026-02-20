@@ -18,6 +18,7 @@ const services = [
   "scheduler",
   "cdn-edge",
 ];
+
 const messages: Record<LogLevel, string[]> = {
   INFO: [
     "Request processed successfully",
@@ -95,7 +96,9 @@ export function LogsPanel() {
     let reconnectTimeout: NodeJS.Timeout;
 
     const connect = () => {
-      ws = new WebSocket("ws://localhost:8000/ws");
+      ws = new WebSocket(
+        `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`,
+      );
 
       ws.onopen = () => {
         console.log("[WS] Connected");
@@ -105,7 +108,7 @@ export function LogsPanel() {
         try {
           const msg = JSON.parse(event.data);
 
-          if (msg.type === "log") {
+          if (msg.type === "logs") {
             setLogs((prev) => [...prev.slice(-29), msg.data]);
           }
         } catch (err) {

@@ -41,6 +41,55 @@ export function InfoPanel() {
 }
 
 export function FixPlan() {
+  // WebSocket - Actual logs
+  // useEffect(() => {
+  //   let ws: WebSocket | null = null;
+  //   let reconnectTimeout: NodeJS.Timeout;
+
+  //   const connect = () => {
+  //     ws = new WebSocket("ws://localhost:8000/ws");
+
+  //     ws.onopen = () => {
+  //       console.log("[WS] Connected");
+  //     };
+
+  //     ws.onmessage = (event) => {
+  //       try {
+  //         const msg = JSON.parse(event.data);
+
+  //         if (msg.type === "log") {
+  //           setLogs((prev) => [...prev.slice(-29), msg.data]);
+  //         }
+  //       } catch (err) {
+  //         console.error("[WS] Invalid message", err);
+  //       }
+  //     };
+
+  //     ws.onclose = () => {
+  //       console.warn("[WS] Disconnected, retrying...");
+  //       reconnectTimeout = setTimeout(connect, 2000);
+  //     };
+
+  //     ws.onerror = (err) => {
+  //       console.error("[WS] Error", err);
+  //       ws?.close();
+  //     };
+  //   };
+
+  //   connect();
+
+  //   return () => {
+  //     ws?.close();
+  //     clearTimeout(reconnectTimeout);
+  //   };
+  // }, []);
+
+  // useEffect(() => {
+  //   if (scrollRef.current) {
+  //     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  //   }
+  // }, [logs]);
+
   return (
     <div className="panel-gradient rounded-lg border border-border p-4 h-full flex flex-col glow-border">
       <h3 className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-4">

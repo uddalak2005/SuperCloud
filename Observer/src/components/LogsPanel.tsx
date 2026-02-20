@@ -83,12 +83,12 @@ export function LogsPanel() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Random logs
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLogs((prev) => [...prev.slice(-30), randomLog()]);
-    }, 1500);
-    return () => clearInterval(interval);
-  }, []);
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     setLogs((prev) => [...prev.slice(-30), randomLog()]);
+  //   }, 1500);
+  //   return () => clearInterval(interval);
+  // }, []);
 
   // WebSocket - Actual logs
   useEffect(() => {
@@ -97,9 +97,8 @@ export function LogsPanel() {
 
     const connect = () => {
       ws = new WebSocket(
-        `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`,
+        `${window.location.protocol === "https:" ? "wss" : "ws"}://localhost:8000/ws`,
       );
-
       ws.onopen = () => {
         console.log("[WS] Connected");
       };
@@ -110,6 +109,7 @@ export function LogsPanel() {
 
           if (msg.type === "logs") {
             setLogs((prev) => [...prev.slice(-29), msg.data]);
+            console.log("Logs recieved : ", msg.data);
           }
         } catch (err) {
           console.error("[WS] Invalid message", err);
@@ -161,7 +161,9 @@ export function LogsPanel() {
             className="flex gap-2 text-[11px] font-mono py-0.5 animate-slide-in-log"
           >
             <span className="text-muted-foreground shrink-0">
-              {log.timestamp}
+              {log.timestamp.length > 15
+                ? log.timestamp.slice(11, 23)
+                : log.timestamp}
             </span>
             <span
               className={cn(

@@ -9,6 +9,7 @@ import os
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(BASE_DIR)
 from fixer.fixer import Fixer
+import websocket
 
 fixer = Fixer()
 
@@ -184,16 +185,17 @@ def main():
 
         # Read logs (non-blocking)
         logs = read_log_fifo_nonblocking(LOG_FIFO)
-        
-
-        # send ALL logs to websocket backend
-        try:
-            ws = websocket.create_connection("ws://orchestrator:8000/ws", timeout=5)
-            ws.send(json.dumps(logs))
-            log("Sent logs to websocket backend")
-            ws.close()
-        except Exception as e:
-            log(f"WEBSOCKET BACKEND ERROR: {e}")
+        log(logs)
+        if logs:
+            try:
+                requests.post(
+                "http://orchestrator:8000/internal/event",
+                data=json.dumps({"type": "logs", "data": logs}),
+                headers={"Content-Type": "application/json"},
+                timeout=5
+            )
+            except Exception as e:
+                log(f"WEBSOCKET BACKEND ERROR: {e}")
 
         # Detect anomaly
         anomalies = detect_anomaly(data, logs)

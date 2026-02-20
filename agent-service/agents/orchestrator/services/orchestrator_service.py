@@ -37,11 +37,7 @@ async def receive_anomaly(payload: Dict[str, Any]):
         result = await orchestrator.process_telemetry(payload)
         
 
-        return {
-                "status": "accepted",
-                "orchestrator_response": result,
-                
-            }
+        return result
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

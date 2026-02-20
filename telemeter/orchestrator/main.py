@@ -3,7 +3,14 @@ import json
 import time
 import requests
 from datetime import datetime, timezone
-import websocket
+import sys
+import os
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(BASE_DIR)
+from fixer.fixer import Fixer
+
+fixer = Fixer()
 
 # Paths
 BASE_DIR = os.getcwd()
@@ -22,6 +29,31 @@ def log(msg):
     
 log(FIFO_PATH)
 log(LOG_FIFO)
+
+def handle_backend_response(response: dict):
+
+    action = response.get("action")
+
+    if action == "alert_only":
+        print("ALERT ONLY:", response.get("reason"))
+        return
+
+    if action == "execute_fix":
+
+        fix_payload = response.get("fix_payload")
+
+        if not fix_payload:
+            print("No fix payload received")
+            return
+
+        print(f"Executing fix for issue: {fix_payload.get('issue_type')}")
+
+        fix_result = fixer.handle_incident(fix_payload)
+
+        print("Fix result:", fix_result)
+        return
+
+    print("Unknown backend action:", action)
 
 
 def detect_anomaly(data, logs):
@@ -76,8 +108,9 @@ def detect_anomaly(data, logs):
 
 
 def send_to_backend(original_data, anomaly_type, severity, logs):
+
     payload = {
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "host": HOSTNAME,
         "anomaly_type": anomaly_type,
         "severity": severity,
@@ -87,9 +120,22 @@ def send_to_backend(original_data, anomaly_type, severity, logs):
 
     try:
         response = requests.post(BACKEND_URL, json=payload, timeout=5)
+
         log(f"Sent {anomaly_type} → Backend status: {response.status_code}")
+
+        if response.status_code != 200:
+            log("Backend returned non-200 status")
+            return {"action": "alert_only", "reason": "backend_error"}
+
+        try:
+            return response.json()
+        except Exception:
+            log("Invalid JSON from backend")
+            return {"action": "alert_only", "reason": "invalid_backend_json"}
+
     except Exception as e:
         log(f"BACKEND ERROR: {e}")
+        return {"action": "alert_only", "reason": "backend_unreachable"}
 
 
 def read_fifo_blocking(path):
@@ -138,6 +184,7 @@ def main():
 
         # Read logs (non-blocking)
         logs = read_log_fifo_nonblocking(LOG_FIFO)
+        
 
         # send ALL logs to websocket backend
         try:
@@ -153,8 +200,9 @@ def main():
 
         # Send to backend if anomalies exist
         for anomaly_type, severity in anomalies:
-            send_to_backend(data, anomaly_type, severity, logs)
-
+            backend_response = send_to_backend(data, anomaly_type, severity, logs)
+            print(backend_response)
+            handle_backend_response(backend_response)
         time.sleep(5)
 
 

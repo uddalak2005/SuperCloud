@@ -34,7 +34,7 @@ class Orchestrator:
 
     def _default_config(self) -> Dict[str, Any]:
         return {
-            "enable_auto_remediation": False, #change to True to enable auto remediation
+            "enable_auto_remediation": False,
             "detector_service_url": "http://detector:8001",
             "rca_service_url": "http://rca:8002",
             "fixer_service_url": "http://fixer:8003"
@@ -95,6 +95,7 @@ class Orchestrator:
         else:
             await self._alert_only(incident_id)
 
+
     async def _run_rca_pipeline(self, incident_id: str):
 
         incident = self.active_incidents[incident_id]
@@ -102,7 +103,6 @@ class Orchestrator:
 
         params = cast(Dict[str, Any], incident.get("detection_result", {}).get("parameters", {}))
 
-      
         rca_state = {
             "incident_id": incident_id,
             "severity": params.get("severity", "low"),
@@ -122,10 +122,24 @@ class Orchestrator:
                 response.raise_for_status()
                 rca_result = response.json()
 
-                print(f"[Orchestrator RCA RESULT] {incident_id}: \n", rca_result)
+                print(f"[Orchestrator RCA RESULT] {incident_id}:\n", rca_result)
 
-            if "parameters" not in rca_result:
-                raise ValueError("Invalid RCA response format")
+            if rca_result.get("action") == "alert_only":
+                print(f"[Orchestrator] RCA returned alert_only for {incident_id}")
+
+                incident["state"] = IncidentState.RESOLVED.value
+
+                incident["timeline"].append({
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "event": "rca_alert_only",
+                    "details": rca_result
+                })
+
+                await self._log_incident(incident_id)
+                return
+
+            if rca_result.get("action") != "rca_complete":
+                raise ValueError("Unexpected RCA response format")
 
             incident["rca_result"] = rca_result
             incident["state"] = IncidentState.RCA_IN_PROGRESS.value
@@ -136,17 +150,15 @@ class Orchestrator:
                 "details": rca_result
             })
 
-            if self.config.get("enable_auto_remediation", False):  #Auto remediation toggle
+            if self.config.get("enable_auto_remediation", False):
                 await self._auto_remediate(incident_id)
             else:
                 await self._log_incident(incident_id)
 
         except Exception as e:
-            print(f"[Orchestrator] RCA service error \n: {e}")
+            print(f"[Orchestrator] RCA service error:\n{e}")
             incident["state"] = IncidentState.FAILED.value
             await self._log_incident(incident_id)
-
-    #FIXER endpont
 
     async def _auto_remediate(self, incident_id: str):
 
@@ -187,7 +199,6 @@ class Orchestrator:
             incident["state"] = IncidentState.FAILED.value
             await self._log_incident(incident_id)
 
-
     async def _alert_only(self, incident_id: str):
         await self._log_incident(incident_id)
         self.active_incidents.pop(incident_id, None)
@@ -202,7 +213,6 @@ class Orchestrator:
             "config": self.config,
             "active_incidents": len(self.active_incidents)
         }
-
 
 
 

@@ -1,10 +1,12 @@
 from fastapi import FastAPI, HTTPException
 from typing import Dict, Any
 import uvicorn
-from agents.orchestrator.orchestrator import Orchestrator
+from agents.orchestrator.Orchestrator import Orchestrator
 from fastapi import WebSocket, WebSocketDisconnect
-from agents.orchestrator.orchestrator import WebSocketManager
+from agents.orchestrator.Orchestrator import WebSocketManager
 from pydantic import BaseModel
+import json
+import asyncio
 import json
 
 app = FastAPI(title="Orchestrator Service")
@@ -38,7 +40,11 @@ async def receive_anomaly(payload: Dict[str, Any]):
         result = await orchestrator.process_telemetry(payload)
         
 
-        return result
+        return {
+                "status": "accepted",
+                "orchestrator_response": result,
+                
+            }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -48,17 +54,15 @@ ws_manager = WebSocketManager(buffer_size=5000)
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await ws_manager.connect(websocket)
-
     try:
         while True:
-            # Keep connection alive; UI may send pings
-            message = await websocket.receive_text()
-            data = json.loads(message)
-
-            await ws_manager.emit("logs", data)
+            await asyncio.sleep(60)  # keep alive
     except WebSocketDisconnect:
         await ws_manager.disconnect(websocket)
 
+
+from pydantic import BaseModel
+from datetime import datetime
 
 class EventIn(BaseModel):
     type: str
@@ -66,7 +70,12 @@ class EventIn(BaseModel):
 
 @app.post("/internal/event")
 async def receive_event(event: EventIn):
-    await ws_manager.emit(event.type, event.data)
+    print(f"RECEIVED EVENT: {event}")
+
+    await ws_manager.emit(
+        event.model_dump(mode="json")  # ✅ THIS IS THE FIX
+    )
+
     return {"status": "ok"}
 
 @app.get("/status")
@@ -78,5 +87,5 @@ if __name__ == "__main__":
         "orchestrator_service:app",
         host="0.0.0.0",
         port=8000,
-        reload=True
+        reload=False
     )

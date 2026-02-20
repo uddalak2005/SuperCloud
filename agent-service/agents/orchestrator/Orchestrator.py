@@ -236,30 +236,28 @@ class WebSocketManager:
         await websocket.accept()
         async with self.lock:
             self.active_connections.append(websocket)
-
-        # Replay buffered events to new client
-        for event in self.event_buffer:
-            await websocket.send_json(event)
+            # Replay buffered events to new client while holding the lock
+            for event in list(self.event_buffer):
+                try:
+                    await websocket.send_json(event)
+                except Exception as e:
+                    print(f"[WS] Replay send failed, dropping connection: {e}")
+                    self.active_connections.remove(websocket)
+                    return
 
     async def disconnect(self, websocket: WebSocket):
         async with self.lock:
             if websocket in self.active_connections:
                 self.active_connections.remove(websocket)
 
-    async def emit(self, event_type: str, data: Dict[str, Any]):
+    async def emit(self, data: Dict[str, Any]):
         """
-        Create an event and broadcast it
+        Broadcast a single log event
         """
-        message = {
-            "type": event_type,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "data": data
-        }
-
         # Store for replay
-        self.event_buffer.append(message)
+        self.event_buffer.append(data)
 
-        await self._broadcast(message)
+        await self._broadcast(data)
 
     async def _broadcast(self, message: Dict[str, Any]):
         dead_connections = []

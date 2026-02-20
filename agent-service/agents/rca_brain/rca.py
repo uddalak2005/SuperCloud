@@ -6,6 +6,10 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 from groq import AsyncGroq
 from agents.base_agent import BaseAgent
+import os
+
+base_dir = os.path.dirname(os.path.abspath(__file__))
+rulebook_path = os.path.join(base_dir, "rulebook.json")
 
 load_dotenv()
 
@@ -21,6 +25,11 @@ class RCABrainAgent(BaseAgent):
             raise ValueError("GROQ_API_KEY not found")
 
         self.client = AsyncGroq(api_key=self.groq_api_key)
+        
+        with open(rulebook_path) as f:
+            self.rulebook = json.load(f)
+
+        self.valid_issue_types = list(self.rulebook["issues"].keys())
 
     async def get_action(self, telemetry_payload: Dict[str, Any]) -> Dict[str, Any]:
 
@@ -37,6 +46,9 @@ class RCABrainAgent(BaseAgent):
             anomaly_score
         )
 
+        if rca_result.get("action") == "alert_only":
+            return rca_result
+
         return {
             "action": "rca_complete",
             "parameters": rca_result
@@ -49,6 +61,11 @@ class RCABrainAgent(BaseAgent):
 
         if isinstance(logs, dict):
             logs = [logs]
+        
+        valid_issues = "\n".join(
+            [f"- {i}" for i in self.valid_issue_types]
+        )
+
 
         return f"""
 You are analyzing a production incident.
@@ -59,11 +76,45 @@ METRICS:
 LOGS:
 {json.dumps(logs, indent=2)}
 
+Valid issue_type options:
+{valid_issues}
+
+Choose ONLY from the above.
+If none apply, return "none".
+
 Classify:
 - issue_type
 - severity
 - execution environment (kubernetes | docker | systemd | host)
 """
+
+    def validate_llm_output(self, parsed: Dict[str, Any]) -> Dict[str, Any] | None:
+
+        issue_type = parsed.get("issue_type")
+
+        # 1️⃣ Must be valid issue
+        if issue_type not in self.valid_issue_types:
+            print("Invalid issue_type from LLM")
+            return None
+
+        issue_config = self.rulebook["issues"][issue_type]
+
+        # 2️⃣ Environment must match rulebook
+        expected_env = issue_config["environment"]
+        actual_env = parsed.get("target", {}).get("environment")
+
+        if actual_env not in ["docker", "kubernetes", "systemd", "host"]:
+            return None
+
+        if expected_env != actual_env:
+            return None
+
+        # 3️⃣ Confidence threshold
+        if parsed.get("confidence", 0) < 0.6:
+            print("Low confidence — alert only")
+            return None
+
+        return parsed
 
     async def perform_llm_reasoning(
         self,
@@ -133,7 +184,15 @@ Classify:
 
             parsed = json.loads(matches[-1])
 
-            return parsed
+            validated = self.validate_llm_output(parsed)
+
+            if not validated:
+                return {
+                    "action": "alert_only",
+                    "reason": "validation_failed"
+                }
+
+            return validated
 
         except Exception as e:
             print("RCA PARSE ERROR:", str(e))

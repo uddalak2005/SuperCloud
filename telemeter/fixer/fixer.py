@@ -1,10 +1,14 @@
 import json
-from executor import CommandExecutor
+from fixer.executor import CommandExecutor
+import os
+
+base_dir = os.path.dirname(os.path.abspath(__file__))
+rulebook_path = os.path.join(base_dir, "rulebook.json")
 
 
 class Fixer:
 
-    def __init__(self, rulebook_path="rulebook.json"):
+    def __init__(self):
         with open(rulebook_path) as f:
             self.rulebook = json.load(f)
 

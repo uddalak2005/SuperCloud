@@ -1,5 +1,5 @@
 {
-  "version": "2.0",
+  "version": "2.1",
   "global_policy": {
     "auto_remediation_enabled": true,
     "max_retry_per_incident": 2,
@@ -8,62 +8,142 @@
     "health_check_timeout_seconds": 90,
     "canary_enabled": true,
     "canary_wait_seconds": 60,
-    "stop_execution_on_failure": true,
-    "forbidden_command_patterns": [
-      "rm -rf",
-      "mkfs",
-      "dd ",
-      "reboot",
-      "shutdown",
-      "iptables",
-      "useradd",
-      "usermod",
-      "chmod",
-      "chown",
-      "apt install",
-      "yum install",
-      "curl | sh"
-    ]
+    "stop_execution_on_failure": true
   },
-
-  "health_checks": {
-    "http_service": {
-      "description": "HTTP health endpoint validation",
-      "command_template": "curl -sf http://{host}:{port}/health",
-      "success_criteria": "exit_code == 0"
+  "actions": {
+    "k8s_restart_deployment": {
+      "allowed_params": [
+        "deployment_name"
+      ],
+      "command_template": [
+        "kubectl",
+        "rollout",
+        "restart",
+        "deployment",
+        "{deployment_name}"
+      ]
     },
-    "kubernetes_deployment": {
-      "description": "Ensure deployment rollout successful",
-      "command_template": "kubectl rollout status deployment {deployment_name}",
-      "success_criteria": "exit_code == 0"
+    "k8s_scale_deployment": {
+      "allowed_params": [
+        "deployment_name",
+        "replica_count"
+      ],
+      "command_template": [
+        "kubectl",
+        "scale",
+        "deployment",
+        "{deployment_name}",
+        "--replicas={replica_count}"
+      ]
     },
-    "docker_container": {
-      "description": "Check container running state",
-      "command_template": "docker inspect -f '{{.State.Running}}' {container_name}",
-      "success_criteria": "output == true"
+    "k8s_delete_pod": {
+      "allowed_params": [
+        "pod_name"
+      ],
+      "command_template": [
+        "kubectl",
+        "delete",
+        "pod",
+        "{pod_name}"
+      ]
     },
-    "systemd_service": {
-      "description": "Check systemd service active",
-      "command_template": "systemctl is-active {service_name}",
-      "success_criteria": "output == active"
+    "docker_restart_container": {
+      "allowed_params": [
+        "container_name"
+      ],
+      "command_template": [
+        "docker",
+        "restart",
+        "{container_name}"
+      ]
+    },
+    "systemd_restart_service": {
+      "allowed_params": [
+        "service_name"
+      ],
+      "command_template": [
+        "sudo",
+        "systemctl",
+        "restart",
+        "{service_name}"
+      ]
+    },
+    "journal_vacuum": {
+      "allowed_params": [],
+      "command_template": [
+        "sudo",
+        "journalctl",
+        "--vacuum-time=3d"
+      ]
+    },
+    "docker_system_prune": {
+      "allowed_params": [],
+      "command_template": [
+        "docker",
+        "system",
+        "prune",
+        "-f"
+      ]
+    },
+    "k8s_rollback_deployment": {
+      "allowed_params": [
+        "deployment_name"
+      ],
+      "command_template": [
+        "kubectl",
+        "rollout",
+        "undo",
+        "deployment",
+        "{deployment_name}"
+      ]
     }
   },
-
-  "circuit_breaker": {
-    "description": "Disable remediation for unstable systems",
-    "trigger_conditions": {
-      "consecutive_failures": 3,
-      "same_incident_within_minutes": 10
+  "health_checks": {
+    "kubernetes_deployment": {
+      "action": "k8s_rollout_status",
+      "command_template": [
+        "kubectl",
+        "rollout",
+        "status",
+        "deployment",
+        "{deployment_name}"
+      ],
+      "success_criteria": {
+        "exit_code": 0
+      }
     },
-    "action": "halt_auto_remediation",
-    "cooldown_minutes": 15
+    "docker_container": {
+      "command_template": [
+        "docker",
+        "inspect",
+        "-f",
+        "{{.State.Running}}",
+        "{container_name}"
+      ],
+      "success_criteria": {
+        "stdout_equals": "true"
+      }
+    },
+    "systemd_service": {
+      "command_template": [
+        "systemctl",
+        "is-active",
+        "{service_name}"
+      ],
+      "success_criteria": {
+        "stdout_equals": "active"
+      }
+    }
   },
-
   "issues": {
-
     "cpu_high": {
-      "condition": "cpu_percent > 85",
-      "canary_strategy": {
+      "environment": "kubernetes",
+      "condition": {
+        "metric": "cpu_percent",
+        "operator": ">",
+        "threshold": 85
+      },
+      "canary": {
         "type": "kubernetes",
         "initial_replicas": 1,
         "restore_replicas_after_success": true
@@ -71,105 +151,99 @@
       "steps": [
         {
           "priority": 1,
-          "description": "Restart kubernetes deployment",
-          "command_template": "kubectl rollout restart deployment {deployment_name}"
+          "action": "k8s_restart_deployment"
         },
         {
           "priority": 2,
-          "description": "Scale deployment up",
-          "command_template": "kubectl scale deployment {deployment_name} --replicas={replica_count}"
+          "action": "k8s_scale_deployment"
         }
       ],
       "health_check": "kubernetes_deployment",
       "rollback": {
-        "description": "Rollback deployment to previous revision",
-        "command_template": "kubectl rollout undo deployment {deployment_name}"
+        "action": "k8s_rollback_deployment"
       }
     },
-
     "memory_high": {
-      "condition": "memory_percent > 85",
-      "canary_strategy": {
+      "environment": "docker",
+      "condition": {
+        "metric": "memory_percent",
+        "operator": ">",
+        "threshold": 85
+      },
+      "canary": {
         "type": "docker",
         "restart_single_instance": true
       },
       "steps": [
         {
           "priority": 1,
-          "description": "Restart docker container",
-          "command_template": "docker restart {container_name}"
+          "action": "docker_restart_container"
         }
       ],
       "health_check": "docker_container",
-      "rollback": {
-        "description": "Restart previous stable container image",
-        "command_template": "docker rollback {container_name}"
-      }
+      "rollback": null
     },
-
     "disk_high": {
-      "condition": "disk_percent > 90",
-      "canary_strategy": {
+      "environment": "host",
+      "condition": {
+        "metric": "disk_percent",
+        "operator": ">",
+        "threshold": 90
+      },
+      "canary": {
         "type": "none"
       },
       "steps": [
         {
           "priority": 1,
-          "description": "Vacuum journal logs",
-          "command_template": "sudo journalctl --vacuum-time=3d"
+          "action": "journal_vacuum"
         },
         {
           "priority": 2,
-          "description": "Prune unused docker resources",
-          "command_template": "docker system prune -f"
+          "action": "docker_system_prune"
         }
       ],
       "health_check": null,
       "rollback": null
     },
-
     "service_error_log": {
-      "condition": "log_level == ERROR",
-      "canary_strategy": {
+      "environment": "systemd",
+      "condition": {
+        "log_level": "ERROR"
+      },
+      "canary": {
         "type": "systemd",
         "restart_single_service": true
       },
       "steps": [
         {
           "priority": 1,
-          "description": "Restart systemd service",
-          "command_template": "sudo systemctl restart {service_name}"
-        },
-        {
-          "priority": 2,
-          "description": "Restart docker container",
-          "command_template": "docker restart {container_name}"
+          "action": "systemd_restart_service"
         }
       ],
       "health_check": "systemd_service",
       "rollback": {
-        "description": "Restart previous service instance",
-        "command_template": "sudo systemctl restart {service_name}"
+        "action": "systemd_restart_service"
       }
     },
-
     "kubernetes_pod_crash": {
-      "condition": "pod_status == CrashLoopBackOff",
-      "canary_strategy": {
+      "environment": "kubernetes",
+      "condition": {
+        "pod_status": "CrashLoopBackOff"
+      },
+      "canary": {
         "type": "kubernetes",
         "delete_single_pod": true
       },
       "steps": [
         {
           "priority": 1,
-          "description": "Delete crashing pod",
-          "command_template": "kubectl delete pod {pod_name}"
+          "action": "k8s_delete_pod"
         }
       ],
       "health_check": "kubernetes_deployment",
       "rollback": {
-        "description": "Rollback deployment revision",
-        "command_template": "kubectl rollout undo deployment {deployment_name}"
+        "action": "k8s_rollback_deployment"
       }
     }
   }

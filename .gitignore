@@ -1,0 +1,29 @@
+# Virtual environments
+env/
+.env/
+.envrc/
+
+# ENV FILES
+.env
+*.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyc.*
+*.pkl
+*.joblib
+
+# Logs
+*.log
+uvicorn.log
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# IDE
+.vscode/
+.idea/

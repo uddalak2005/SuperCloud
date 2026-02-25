@@ -1,8 +1,21 @@
 import httpx
+<<<<<<< HEAD
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Dict, Any, Optional, cast
+=======
+from uuid6 import uuid7
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Dict, Any, Optional, cast
+import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from influxdb_client import InfluxDBClient, Point, WritePrecision
+from influxdb_client.client.write_api import SYNCHRONOUS
+>>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
 
 
 class IncidentState(Enum):
@@ -23,21 +36,50 @@ class Orchestrator:
         websocket_manager=None
     ):
         self.logger = incident_logger
+<<<<<<< HEAD
         self.config = config or self._default_config()
+=======
+        self.config = self._default_config()
+        if config:
+            self.config.update(config)
+>>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
 
         self.detector_service_url = self.config.get("detector_service_url")
         self.rca_service_url = self.config.get("rca_service_url")
         self.fixer_service_url = self.config.get("fixer_service_url")
         self.websocket_manager = websocket_manager
 
+<<<<<<< HEAD
+=======
+
+        self.influx_client = InfluxDBClient(
+        url=self.config.get("influx_url"),
+        token=self.config.get("influx_token"),
+        org=self.config.get("influx_org"))
+
+        self.influx_write_api = self.influx_client.write_api(write_options=SYNCHRONOUS)
+
+>>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
         self.active_incidents: Dict[str, Dict[str, Any]] = {}
 
     def _default_config(self) -> Dict[str, Any]:
         return {
-            "enable_auto_remediation": False, #change to True to enable auto remediation
+            "enable_auto_remediation": False,
             "detector_service_url": "http://detector:8001",
             "rca_service_url": "http://rca:8002",
-            "fixer_service_url": "http://fixer:8003"
+            "fixer_service_url": "http://fixer:8003",
+            "email_enabled": True,
+            "email_sender": "niruponpal2003@gmail.com",
+            "email_password": os.getenv("EMAIL_APP_PASSWORD", ""),
+            "email_receiver": "niruponpal@gmail.com",
+
+            
+             "influx_url": "http://influxdb:8086",
+            "influx_token": os.getenv("INFLUX_TOKEN", ""),
+            "influx_org": "supercloud",
+            "influx_bucket": "incidents",
+
+
         }
 
     async def process_telemetry(self, telemetry_payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -48,10 +90,20 @@ class Orchestrator:
         if detection_result.get("action") == "alert":
             await self._handle_incident(detection_result, telemetry_payload)
 
+<<<<<<< HEAD
         return {"status": "processed"}
 
     async def _run_detection(self, telemetry_data: Dict[str, Any]) -> Dict[str, Any]:
 
+=======
+        return {
+            "status": "processed",
+            "action": detection_result.get("action"),
+            "parameters": detection_result.get("parameters", {})
+        }
+
+    async def _run_detection(self, telemetry_data: Dict[str, Any]) -> Dict[str, Any]:
+>>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
@@ -72,7 +124,12 @@ class Orchestrator:
         telemetry_data: Dict[str, Any]
     ):
 
+<<<<<<< HEAD
         incident_id = str(uuid.uuid4())
+=======
+        # UUID7
+        incident_id = str(uuid7())
+>>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
 
         print(f"\n[Orchestrator] INCIDENT DETECTED: {incident_id}\n")
 
@@ -102,7 +159,10 @@ class Orchestrator:
 
         params = cast(Dict[str, Any], incident.get("detection_result", {}).get("parameters", {}))
 
+<<<<<<< HEAD
       
+=======
+>>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
         rca_state = {
             "incident_id": incident_id,
             "severity": params.get("severity", "low"),
@@ -118,6 +178,7 @@ class Orchestrator:
                     json=rca_state,
                     timeout=20
                 )
+<<<<<<< HEAD
 
                 response.raise_for_status()
                 rca_result = response.json()
@@ -149,11 +210,33 @@ class Orchestrator:
     #FIXER endpont
 
     async def _auto_remediate(self, incident_id: str):
+=======
+                response.raise_for_status()
+                rca_result = response.json()
+
+            print(f"[Orchestrator RCA RESULT] {incident_id}:\n", rca_result)
+
+            incident["rca_result"] = rca_result
+            incident["state"] = IncidentState.RESOLVED.value
+
+            await self._log_incident(incident_id)
+
+        except Exception as e:
+            print(f"[Orchestrator] RCA service error:\n{e}")
+            incident["state"] = IncidentState.FAILED.value
+            await self._log_incident(incident_id)
+
+    async def _alert_only(self, incident_id: str):
+        await self._log_incident(incident_id)
+
+    async def _log_incident(self, incident_id: str):
+>>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
 
         incident = self.active_incidents.get(incident_id)
         if not incident:
             return
 
+<<<<<<< HEAD
         incident["state"] = IncidentState.REMEDIATION_IN_PROGRESS.value
 
         rca_payload = incident.get("rca_result", {}).get("parameters", {})
@@ -204,6 +287,215 @@ class Orchestrator:
         }
 
 
+=======
+        print(f"[Orchestrator] Logging incident {incident_id}")
+
+    # Write to InfluxDB
+        try:
+            severity = incident.get("detection_result", {}).get("parameters", {}).get("severity", "UNKNOWN")
+            anomaly_score = incident.get("detection_result", {}).get("parameters", {}).get("anomaly_score", 0)
+
+            metrics = incident.get("telemetry_snapshot", {}).get("metrics", {})
+
+            point = (
+                Point("supercloud_incidents")
+                .tag("incident_id", incident_id)
+                .tag("severity", severity)
+                .field("anomaly_score", float(anomaly_score))
+                .field("cpu_percent", float(metrics.get("cpu", {}).get("cpu_percent", 0)))
+                .field("memory_percent", float(metrics.get("memory", {}).get("used_percent", 0)))
+                .field("disk_percent", float(metrics.get("disk", {}).get("used_percent", 0)))
+                .time(datetime.now(timezone.utc).isoformat(), WritePrecision.NS)
+            )
+
+            self.influx_write_api.write(
+                bucket=self.config.get("influx_bucket"),
+                org=self.config.get("influx_org"),
+                record=point
+            )
+
+            print("[Orchestrator] Incident written to InfluxDB")
+
+        except Exception as e:
+            print("[Orchestrator] Influx write failed:", e)
+
+
+        # send email
+        await self._send_incident_email(incident)
+
+    async def _send_incident_email(self, incident: Dict[str, Any]):
+
+        if not self.config.get("email_enabled", False):
+            print("Email disabled")
+            return
+
+        sender = self.config.get("email_sender")
+        password = self.config.get("email_password")
+        receiver = self.config.get("email_receiver")
+
+        if not password:
+            print("EMAIL PASSWORD EMPTY")
+            return
+
+        try:
+            severity = incident.get("detection_result", {}).get("parameters", {}).get("severity", "UNKNOWN")
+            anomaly_score = incident.get("detection_result", {}).get("parameters", {}).get("anomaly_score", 0)
+
+            metrics = incident.get("telemetry_snapshot", {}).get("metrics", {})
+            logs = incident.get("telemetry_snapshot", {}).get("logs", {})
+            rca = incident.get("rca_result", {})
+
+            severity_color = {
+            "CRITICAL": "#dc3545",
+            "HIGH": "#fd7e14",
+            "MEDIUM": "#ffc107",
+            "LOW": "#28a745"
+            }.get(severity.upper(), "#6c757d")
+
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = f"[SuperCloud Alert] {severity} Incident {incident['incident_id']}"
+            msg["From"] = sender
+            msg["To"] = receiver
+
+            html_content = f"""
+        <html>
+        <head>
+          <style>
+            body {{
+                font-family: Arial, sans-serif;
+                background-color: #f4f6f9;
+                margin: 0;
+                padding: 0;
+            }}
+            .container {{
+                max-width: 800px;
+                margin: 20px auto;
+                background: #ffffff;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+                padding: 30px;
+            }}
+            .header {{
+                border-bottom: 2px solid #eee;
+                padding-bottom: 15px;
+                margin-bottom: 20px;
+            }}
+            .severity {{
+                display: inline-block;
+                padding: 6px 12px;
+                border-radius: 20px;
+                font-size: 12px;
+                font-weight: bold;
+                color: white;
+                background-color: {severity_color};
+            }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 10px;
+            }}
+            table th, table td {{
+                border: 1px solid #eee;
+                padding: 8px;
+                text-align: left;
+                font-size: 13px;
+            }}
+            table th {{
+                background-color: #f8f9fa;
+            }}
+            .section {{
+                margin-top: 25px;
+            }}
+            .footer {{
+                margin-top: 30px;
+                font-size: 12px;
+                color: #888;
+                text-align: center;
+                border-top: 1px solid #eee;
+                padding-top: 15px;
+            }}
+          </style>
+        </head>
+        <body>
+          <div class="container">
+
+            <div class="header">
+              <h2> SuperCloud Incident Report</h2>
+              <p><span class="severity">{severity}</span></p>
+            </div>
+
+            <div class="section">
+              <h3> Incident Summary</h3>
+              <table>
+                <tr><th>Incident ID</th><td>{incident['incident_id']}</td></tr>
+                <tr><th>Status</th><td>{incident['state']}</td></tr>
+                <tr><th>Detected At</th><td>{incident['detection_time']}</td></tr>
+                <tr><th>Anomaly Score</th><td>{anomaly_score}</td></tr>
+              </table>
+            </div>
+
+            <div class="section">
+              <h3> System Metrics Snapshot</h3>
+              <table>
+                <tr><th>CPU Usage</th><td>{metrics.get("cpu", {}).get("cpu_percent", "N/A")} %</td></tr>
+                <tr><th>Memory Usage</th><td>{metrics.get("memory", {}).get("used_percent", "N/A")} %</td></tr>
+                <tr><th>Disk Usage</th><td>{metrics.get("disk", {}).get("used_percent", "N/A")} %</td></tr>
+                <tr><th>Network RX</th><td>{metrics.get("network", {}).get("rx_bytes_per_sec", "N/A")}</td></tr>
+                <tr><th>Network TX</th><td>{metrics.get("network", {}).get("tx_bytes_per_sec", "N/A")}</td></tr>
+              </table>
+            </div>
+
+            <div class="section">
+              <h3> Log Trigger</h3>
+              <table>
+                <tr><th>Service</th><td>{logs.get("service", "N/A")}</td></tr>
+                <tr><th>Log Level</th><td>{logs.get("level", "N/A")}</td></tr>
+                <tr><th>Message</th><td>{logs.get("message", "N/A")}</td></tr>
+              </table>
+            </div>
+
+            <div class="section">
+        <h3> Root Cause Analysis</h3>
+        <table>
+            <tr><th>Issue Type</th><td>{rca.get("parameters", {}).get("issue_type", "N/A")}</td></tr>
+            <tr><th>Confidence</th><td>{rca.get("parameters", {}).get("confidence", "N/A")}</td></tr>
+            <tr><th>Environment</th><td>{rca.get("parameters", {}).get("target", {}).get("environment", "N/A")}</td></tr>
+            <tr><th>Container</th><td>{rca.get("parameters", {}).get("target", {}).get("container_name", "N/A")}</td></tr>
+            <tr><th>Service</th><td>{rca.get("parameters", {}).get("target", {}).get("service_name", "N/A")}</td></tr>
+        </table>
+        </div>
+
+            <div class="section">
+              <h3> Recommended Developer Actions</h3>
+              <ul>
+                <li>Review logs around detection timestamp.</li>
+                <li>Check service dependencies.</li>
+                <li>Inspect recent deployments.</li>
+                <li>Monitor CPU / memory patterns.</li>
+              </ul>
+            </div>
+
+            <div class="footer">
+              SuperCloud AIOps Monitoring System<br>
+              Automated Detection • RCA • Intelligent Response
+            </div>
+
+          </div>
+        </body>
+        </html>
+        """
+
+            msg.attach(MIMEText(html_content, "html"))
+
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+                server.login(sender, password)
+                server.sendmail(sender, receiver, msg.as_string())
+
+            print("[Orchestrator] Email sent successfully")
+
+        except Exception as e:
+            print("[Orchestrator] Email failed:", e)
+>>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
 
 
 # Added by Souherdya - Websocket for UI Updates
@@ -226,16 +518,28 @@ class WebSocketManager:
         await websocket.accept()
         async with self.lock:
             self.active_connections.append(websocket)
+<<<<<<< HEAD
 
         # Replay buffered events to new client
         for event in self.event_buffer:
             await websocket.send_json(event)
+=======
+            # Replay buffered events to new client while holding the lock
+            for event in list(self.event_buffer):
+                try:
+                    await websocket.send_json(event)
+                except Exception as e:
+                    print(f"[WS] Replay send failed, dropping connection: {e}")
+                    self.active_connections.remove(websocket)
+                    return
+>>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
 
     async def disconnect(self, websocket: WebSocket):
         async with self.lock:
             if websocket in self.active_connections:
                 self.active_connections.remove(websocket)
 
+<<<<<<< HEAD
     async def emit(self, event_type: str, data: Dict[str, Any]):
         """
         Create an event and broadcast it
@@ -250,6 +554,16 @@ class WebSocketManager:
         self.event_buffer.append(message)
 
         await self._broadcast(message)
+=======
+    async def emit(self, data: Dict[str, Any]):
+        """
+        Broadcast a single log event
+        """
+        # Store for replay
+        self.event_buffer.append(data)
+
+        await self._broadcast(data)
+>>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
 
     async def _broadcast(self, message: Dict[str, Any]):
         dead_connections = []

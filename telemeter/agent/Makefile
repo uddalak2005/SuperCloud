@@ -3,6 +3,7 @@ BUILD_DIR = build
 TARGET = $(BUILD_DIR)/metrics_collector.o
 LOGS_TARGET = $(BUILD_DIR)/log_collector.o
 COMBINED_TARGET = $(BUILD_DIR)/watcher_agent_all.o
+LOG_GENERATOR = log-generator.sh
 
 SRC_DIR = metrics
 COLLECTOR_DIR = $(SRC_DIR)/metrics_collector
@@ -82,6 +83,10 @@ write-test-logs:
 	@echo "INFO pid=123 startup complete" >> /var/log/node/app.log
 	@echo "WARN cache miss" >> /var/log/redis/redis.log
 	@echo "ERROR pid=999 query failed" >> /var/log/mysql/mysql.log
+
+gen-logs: $(LOG_GENERATOR)
+	chmod u+x $(LOG_GENERATOR)
+	./$(LOG_GENERATOR)
 
 clean:
 	rm -f $(BUILD_DIR)/*.o $(TARGET) $(LOGS_TARGET) $(COMBINED_TARGET)

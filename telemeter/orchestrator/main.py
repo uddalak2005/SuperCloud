@@ -5,6 +5,7 @@ import requests
 from datetime import datetime, timezone
 import sys
 import os
+import random
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(BASE_DIR)
@@ -22,6 +23,8 @@ LOG_FIFO = os.path.join(BASE_DIR, "agent/fifo/logs.fifo")
 BACKEND_URL = "http://orchestrator:8000/anomaly"
 HOSTNAME = os.uname().nodename
 WEBSOCKET_BACKEND_URL = "http://orchestrator:8000/ws"
+
+
 
 
 def log(msg):
@@ -54,6 +57,83 @@ def handle_backend_response(response: dict):
         return
 
     print("Unknown backend action:", action)
+    
+
+METRICS_MODE = "simulated" #real
+ 
+SIMULATION_CYCLE_MINUTES = 2
+
+SIMULATION_START_TIME = time.time()
+
+def get_current_simulation_profile():
+    """
+    Cycles through:
+    normal → degraded → outage
+    Each lasting SIMULATION_CYCLE_MINUTES
+    """
+
+    elapsed_seconds = time.time() - SIMULATION_START_TIME
+    elapsed_minutes = int(elapsed_seconds // 60)
+
+    cycle_index = (elapsed_minutes // SIMULATION_CYCLE_MINUTES) % 3
+
+    if cycle_index == 0:
+        return "normal"
+    elif cycle_index == 1:
+        return "degraded"
+    else:
+        return "outage"
+
+
+def generate_simulated_metrics():
+    """
+    Generates fake metrics for testing.
+    Profiles:
+    - normal
+    - degraded
+    - outage
+    """
+    
+    profile = "outage"
+
+    if profile == "normal":
+        cpu = random.uniform(5, 25)
+        mem = random.uniform(30, 60)
+        disk = random.uniform(20, 50)
+        rx = random.randint(100, 5000)
+        tx = random.randint(100, 5000)
+
+    elif profile == "degraded":
+        cpu = random.uniform(60, 85)
+        mem = random.uniform(70, 90)
+        disk = random.uniform(50, 80)
+        rx = random.randint(50_000, 200_000)
+        tx = random.randint(50_000, 200_000)
+
+    elif profile == "outage":
+        cpu = random.uniform(95, 100)
+        mem = random.uniform(90, 98)
+        disk = random.uniform(80, 95)
+        rx = random.randint(5_000_000, 20_000_000)
+        tx = random.randint(5_000_000, 20_000_000)
+
+    else:
+        cpu = 10
+        mem = 40
+        disk = 30
+        rx = 1000
+        tx = 1000
+
+    return {
+        "timestamp": int(time.time()),
+        "cpu": {"cpu_percent": round(cpu, 2)},
+        "memory": {"used_percent": round(mem, 2)},
+        "disk": {"used_percent": round(disk, 2)},
+        "network": {
+            "rx_bytes_per_sec": rx,
+            "tx_bytes_per_sec": tx
+        }
+    }
 
 
 def detect_anomaly(data, logs):
@@ -172,9 +252,14 @@ def main():
 
     while True:
         log("Waiting for FIFO data...")
+        print(METRICS_MODE)
 
         # Read metrics
-        data = read_fifo_blocking(FIFO_PATH)
+        if METRICS_MODE == "simulated":
+            data = generate_simulated_metrics()
+            print(data)
+        else:
+            data = read_fifo_blocking(FIFO_PATH)
 
         if not data:
             time.sleep(2)

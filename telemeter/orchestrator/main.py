@@ -25,8 +25,6 @@ HOSTNAME = os.uname().nodename
 WEBSOCKET_BACKEND_URL = "http://orchestrator:8000/ws"
 
 
-
-
 def log(msg):
     print(f"[{datetime.now(timezone.utc).isoformat()}] {msg}")
     

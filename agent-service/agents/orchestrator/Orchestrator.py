@@ -1,10 +1,4 @@
 import httpx
-<<<<<<< HEAD
-import uuid
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Dict, Any, Optional, cast
-=======
 from uuid6 import uuid7
 from datetime import datetime, timezone
 from enum import Enum
@@ -15,7 +9,6 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
->>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
 
 
 class IncidentState(Enum):
@@ -36,21 +29,15 @@ class Orchestrator:
         websocket_manager=None
     ):
         self.logger = incident_logger
-<<<<<<< HEAD
-        self.config = config or self._default_config()
-=======
         self.config = self._default_config()
         if config:
             self.config.update(config)
->>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
 
         self.detector_service_url = self.config.get("detector_service_url")
         self.rca_service_url = self.config.get("rca_service_url")
         self.fixer_service_url = self.config.get("fixer_service_url")
         self.websocket_manager = websocket_manager
 
-<<<<<<< HEAD
-=======
 
         self.influx_client = InfluxDBClient(
         url=self.config.get("influx_url"),
@@ -59,7 +46,6 @@ class Orchestrator:
 
         self.influx_write_api = self.influx_client.write_api(write_options=SYNCHRONOUS)
 
->>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
         self.active_incidents: Dict[str, Dict[str, Any]] = {}
 
     def _default_config(self) -> Dict[str, Any]:
@@ -90,12 +76,6 @@ class Orchestrator:
         if detection_result.get("action") == "alert":
             await self._handle_incident(detection_result, telemetry_payload)
 
-<<<<<<< HEAD
-        return {"status": "processed"}
-
-    async def _run_detection(self, telemetry_data: Dict[str, Any]) -> Dict[str, Any]:
-
-=======
         return {
             "status": "processed",
             "action": detection_result.get("action"),
@@ -103,7 +83,6 @@ class Orchestrator:
         }
 
     async def _run_detection(self, telemetry_data: Dict[str, Any]) -> Dict[str, Any]:
->>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
@@ -124,12 +103,8 @@ class Orchestrator:
         telemetry_data: Dict[str, Any]
     ):
 
-<<<<<<< HEAD
-        incident_id = str(uuid.uuid4())
-=======
         # UUID7
         incident_id = str(uuid7())
->>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
 
         print(f"\n[Orchestrator] INCIDENT DETECTED: {incident_id}\n")
 
@@ -159,10 +134,6 @@ class Orchestrator:
 
         params = cast(Dict[str, Any], incident.get("detection_result", {}).get("parameters", {}))
 
-<<<<<<< HEAD
-      
-=======
->>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
         rca_state = {
             "incident_id": incident_id,
             "severity": params.get("severity", "low"),
@@ -178,39 +149,6 @@ class Orchestrator:
                     json=rca_state,
                     timeout=20
                 )
-<<<<<<< HEAD
-
-                response.raise_for_status()
-                rca_result = response.json()
-
-                print(f"[Orchestrator RCA RESULT] {incident_id}: \n", rca_result)
-
-            if "parameters" not in rca_result:
-                raise ValueError("Invalid RCA response format")
-
-            incident["rca_result"] = rca_result
-            incident["state"] = IncidentState.RCA_IN_PROGRESS.value
-
-            incident["timeline"].append({
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "event": "rca_completed",
-                "details": rca_result
-            })
-
-            if self.config.get("enable_auto_remediation", False):  #Auto remediation toggle
-                await self._auto_remediate(incident_id)
-            else:
-                await self._log_incident(incident_id)
-
-        except Exception as e:
-            print(f"[Orchestrator] RCA service error \n: {e}")
-            incident["state"] = IncidentState.FAILED.value
-            await self._log_incident(incident_id)
-
-    #FIXER endpont
-
-    async def _auto_remediate(self, incident_id: str):
-=======
                 response.raise_for_status()
                 rca_result = response.json()
 
@@ -230,64 +168,11 @@ class Orchestrator:
         await self._log_incident(incident_id)
 
     async def _log_incident(self, incident_id: str):
->>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
 
         incident = self.active_incidents.get(incident_id)
         if not incident:
             return
 
-<<<<<<< HEAD
-        incident["state"] = IncidentState.REMEDIATION_IN_PROGRESS.value
-
-        rca_payload = incident.get("rca_result", {}).get("parameters", {})
-
-        print(f"[Orchestrator] Sending to Fixer for incident {incident_id}")
-
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{self.fixer_service_url}/execute",
-                    json=rca_payload,
-                    timeout=30
-                )
-                response.raise_for_status()
-
-                fixer_result = response.json()
-                print(f"[Fixer RESULT] {incident_id}:", fixer_result)
-
-            incident["state"] = IncidentState.RESOLVED.value
-
-            incident["timeline"].append({
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "event": "remediation_completed",
-                "details": fixer_result
-            })
-
-            await self._log_incident(incident_id)
-
-        except Exception as e:
-            print(f"[Orchestrator] Fixer error: {e}")
-            incident["state"] = IncidentState.FAILED.value
-            await self._log_incident(incident_id)
-
-
-    async def _alert_only(self, incident_id: str):
-        await self._log_incident(incident_id)
-        self.active_incidents.pop(incident_id, None)
-
-    async def _log_incident(self, incident_id: str):
-        incident = self.active_incidents.get(incident_id)
-        if incident and self.logger:
-            await self.logger.log_incident(incident)
-
-    def get_status(self) -> Dict[str, Any]:
-        return {
-            "config": self.config,
-            "active_incidents": len(self.active_incidents)
-        }
-
-
-=======
         print(f"[Orchestrator] Logging incident {incident_id}")
 
     # Write to InfluxDB
@@ -495,7 +380,6 @@ class Orchestrator:
 
         except Exception as e:
             print("[Orchestrator] Email failed:", e)
->>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
 
 
 # Added by Souherdya - Websocket for UI Updates
@@ -518,12 +402,6 @@ class WebSocketManager:
         await websocket.accept()
         async with self.lock:
             self.active_connections.append(websocket)
-<<<<<<< HEAD
-
-        # Replay buffered events to new client
-        for event in self.event_buffer:
-            await websocket.send_json(event)
-=======
             # Replay buffered events to new client while holding the lock
             for event in list(self.event_buffer):
                 try:
@@ -532,29 +410,12 @@ class WebSocketManager:
                     print(f"[WS] Replay send failed, dropping connection: {e}")
                     self.active_connections.remove(websocket)
                     return
->>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
 
     async def disconnect(self, websocket: WebSocket):
         async with self.lock:
             if websocket in self.active_connections:
                 self.active_connections.remove(websocket)
 
-<<<<<<< HEAD
-    async def emit(self, event_type: str, data: Dict[str, Any]):
-        """
-        Create an event and broadcast it
-        """
-        message = {
-            "type": event_type,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "data": data
-        }
-
-        # Store for replay
-        self.event_buffer.append(message)
-
-        await self._broadcast(message)
-=======
     async def emit(self, data: Dict[str, Any]):
         """
         Broadcast a single log event
@@ -563,7 +424,6 @@ class WebSocketManager:
         self.event_buffer.append(data)
 
         await self._broadcast(data)
->>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
 
     async def _broadcast(self, message: Dict[str, Any]):
         dead_connections = []

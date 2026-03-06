@@ -1,7 +1,7 @@
 services:
-      telemeter:
-            build:
-                  context: .
-                  dockerfile: dockerfile
-            container_name: watcher-dev
-            restart: unless-stopped
+  telemeter:
+    build:
+      context: .
+      dockerfile: agent-service/Dockerfile
+    container_name: watcher-dev
+    restart: unless-stopped

@@ -18,10 +18,7 @@ const services = [
   "scheduler",
   "cdn-edge",
 ];
-<<<<<<< HEAD
-=======
 
->>>>>>> d8b08f10ea133b146415ca92f54056e85c296361
 const messages: Record<LogLevel, string[]> = {
   INFO: [
     "Request processed successfully",

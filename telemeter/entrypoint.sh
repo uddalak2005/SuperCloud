@@ -6,6 +6,8 @@ set -e
 make -C agent setup-test-logs &
 sleep 1
 make -C agent write-test-logs &
+sleep 1
+make -C agent gen-logs &
 
 
 make -C agent run-all &

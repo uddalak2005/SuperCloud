@@ -1,5 +1,5 @@
 import json
-from fixer.executor import CommandExecutor
+from executor import CommandExecutor
 import os
 
 base_dir = os.path.dirname(os.path.abspath(__file__))

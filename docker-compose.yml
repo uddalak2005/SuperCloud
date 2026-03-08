@@ -9,6 +9,18 @@ services:
     networks:
       - smartops-network
 
+  fixer:
+    build:
+      context: ./telemeter/fixer
+      dockerfile: Dockerfile
+    container_name: smartops-fixer
+    ports:
+      - "8003:8003"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - smartops-network
+
   detector:
     build:
       context: ./agent-service/
@@ -59,6 +71,7 @@ services:
       - detector
       - rca
       - influxdb
+      - fixer
     environment:
       - INFLUX_URL=http://influxdb:8086
       - INFLUX_ORG=${INFLUX_INIT_ORG}

@@ -50,7 +50,7 @@ class Orchestrator:
 
     def _default_config(self) -> Dict[str, Any]:
         return {
-            "enable_auto_remediation": False,
+            "enable_auto_remediation": True,
             "detector_service_url": "http://detector:8001",
             "rca_service_url": "http://rca:8002",
             "fixer_service_url": "http://fixer:8003",
@@ -155,9 +155,12 @@ class Orchestrator:
             print(f"[Orchestrator RCA RESULT] {incident_id}:\n", rca_result)
 
             incident["rca_result"] = rca_result
-            incident["state"] = IncidentState.RESOLVED.value
 
-            await self._log_incident(incident_id)
+            if self.config.get("enable_auto_remediation"):
+                await self._run_remediation(incident_id)
+            else:
+                incident["state"] = IncidentState.RESOLVED.value
+                await self._log_incident(incident_id)
 
         except Exception as e:
             print(f"[Orchestrator] RCA service error:\n{e}")
@@ -175,7 +178,7 @@ class Orchestrator:
 
         print(f"[Orchestrator] Logging incident {incident_id}")
 
-    # Write to InfluxDB
+  
         try:
             severity = incident.get("detection_result", {}).get("parameters", {}).get("severity", "UNKNOWN")
             anomaly_score = incident.get("detection_result", {}).get("parameters", {}).get("anomaly_score", 0)
@@ -380,6 +383,51 @@ class Orchestrator:
 
         except Exception as e:
             print("[Orchestrator] Email failed:", e)
+
+
+
+    async def _run_remediation(self, incident_id: str):
+
+        incident = self.active_incidents[incident_id]
+        incident["state"] = IncidentState.REMEDIATION_IN_PROGRESS.value
+
+        rca_result = incident.get("rca_result", {})
+        params = rca_result.get("parameters", {})
+
+        fix_payload = {
+            "incident_id": incident_id,
+            "issue_type": params.get("issue_type"),
+            "target": params.get("target", {})
+        }
+
+        print(f"[Orchestrator] Triggering Fixer for incident {incident_id}")
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.fixer_service_url}/fix",
+                    json=fix_payload,
+                    timeout=20
+                )
+
+                response.raise_for_status()
+                fix_result = response.json()
+
+            print(f"[Orchestrator] Fixer result:", fix_result)
+
+            incident["fix_result"] = fix_result
+
+            if fix_result.get("status") == "success":
+                incident["state"] = IncidentState.RESOLVED.value
+            else:
+                incident["state"] = IncidentState.FAILED.value
+
+        except Exception as e:
+            print("[Orchestrator] Fixer service error:", e)
+            incident["state"] = IncidentState.FAILED.value
+
+        await self._log_incident(incident_id)
+
 
 
 # Added by Souherdya - Websocket for UI Updates

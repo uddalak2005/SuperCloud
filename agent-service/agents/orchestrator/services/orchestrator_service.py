@@ -14,11 +14,11 @@ import json
 app = FastAPI(title="Orchestrator Service")
 
 config = {
-    "enable_auto_remediation": False, #change to True to enable auto remediation
+    "enable_auto_remediation": True, #change to True to enable auto remediation
     "detector_service_url": "http://detector:8001",
     "rca_service_url": "http://rca:8002",
     "fixer_service_url": "http://fixer:8003",
-     "email_enabled": True,
+    "email_enabled": True,
     "email_sender": "niruponpal2003@gmail.com",
     "email_password": os.getenv("EMAIL_APP_PASSWORD", ""),
     "email_receiver": "niruponpal@gmail.com"
@@ -54,6 +54,9 @@ async def receive_anomaly(payload: Dict[str, Any]):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+    
 
 ws_manager = WebSocketManager(buffer_size=5000)
 
@@ -79,7 +82,7 @@ async def receive_event(event: EventIn):
     print(f"RECEIVED EVENT: {event}")
 
     await ws_manager.emit(
-        event.model_dump(mode="json")  # ✅ THIS IS THE FIX
+        event.model_dump(mode="json")  
     )
 
     return {"status": "ok"}

@@ -13,6 +13,9 @@ mkdir -p /var/log/mysql
 
 touch $NODE_LOG $REDIS_LOG $MYSQL_LOG
 
+mkdir -p /var/log/node /var/log/redis /var/log/mysql
+touch $NODE_LOG $REDIS_LOG $MYSQL_LOG
+
 while true; do
     TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S+00:00")
     PID=$((RANDOM % 9000 + 1000))

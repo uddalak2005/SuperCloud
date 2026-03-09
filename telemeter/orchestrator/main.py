@@ -65,7 +65,7 @@ def get_current_simulation_profile():
 
 def generate_simulated_metrics():
 
-    profile = "outage"
+    profile = "degraded"
 
     if profile == "normal":
         cpu = random.uniform(5, 25)
